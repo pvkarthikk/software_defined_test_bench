@@ -125,28 +125,50 @@ The **Software Defined Test Bench (SDT)** serves as the physical-to-digital brid
 
 ---
 
-## 3.1 Hardware Abstraction Layer (HAL)
-The HAL is the foundational software layer and the only module that communicates directly with physical hardware over USB serial. 
-* **Connection Management**: It owns the entire serial lifecycle, including connection, disconnection, and automated recovery after a hardware reset.
-* **Hardware Agnosticism**: Through the use of a `ProtocolHandler`, the HAL can communicate with Arduinos, ESP32s, or custom hardware without changing the upstream code.
-* **Concurrency Control**: It implements a **Hardware Mutex** to ensure that only one command is dispatched to a specific serial port at a time, preventing corrupted commands or undefined hardware behavior.
+## 3.1 Hardware Abstraction Layer (HAL) & System Configuration
 
----
+### 3.1.1 Architecture Overview
+The system utilizes a dual-file Hardware Abstraction Layer (HAL) to decouple physical I/O definitions from high-level control logic. This architecture ensures that the core Python ECU application remains hardware-agnostic, allowing for seamless transitions between different microcontroller targets (e.g., Arduino Uno, ESP32, or custom PCB) without modifying the application source code.
 
-## 3.2 Three-Layer Configuration System
-The SDT utilizes a decoupled configuration strategy to ensure that hardware can be remapped or swapped with zero code changes.
+### 3.1.2 Hardware Registry Specification (`hardware.json`)
+The `hardware.json` file serves as the **Physical Layer Definition**. It maps logical resource IDs to physical pins and defines electrical characteristics.
 
-### 3.2.1 Channel Mapping File (`channel_mappings.json`)
-* **Purpose**: Maps user-friendly names to logical pins.
-* **Content**: Defines the human-readable identifier (e.g., `brake_temp_sensor`), its logical pin (e.g., `sim_output_1`), and its unit of measurement (e.g., `celsius`).
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `id` | String | Unique identifier for the hardware resource (e.g., `HW_ADC_0`). |
+| `type` | Enum | I/O Category: `ANALOG_IN`, `DIGITAL_IN`, `PWM_IN`, `PWM_OUT`, `CAN_BUS`. |
+| `pin` | Int/Str | Physical pin identifier (Arduino Uno: 0-13, A0-A5). |
+| `bit_depth`| Int | ADC/PWM resolution (e.g., 10 for Arduino Uno ADC). |
+| `pull` | Enum | Internal resistor state: `UP`, `DOWN`, or `NONE`. |
 
-### 3.2.2 Simulator Configuration File (`simulator_config.json`)
-* **Purpose**: Maps logical pins to physical hardware pins on the Simulator.
-* **Content**: Includes physical pin IDs (e.g., `D11`), capabilities (e.g., `PWM`, `Analog`), and the simulator's physical current and voltage limits.
+### 3.1.3 Control Logic & Signal Mapping (`controls.json`)
+The `controls.json` file serves as the **Application Layer Definition**. It assigns user-friendly names to resources and defines signal processing logic.
 
-### 3.2.3 DUT Limits File (`dut_limits.json`)
-* **Purpose**: Defines the electrical safety boundaries of the Device Under Test.
-* **Content**: Specifies the maximum voltage the DUT can tolerate on a specific pin (e.g., 3.3V) and the expected normal operating range for signals.
+#### 3.1.3.1 Signal Processing Modes
+* **Linear Mapping:** Used for basic sensors (e.g., Accelerator). Scaled via:
+    $$y = y_{min} + \frac{(x - x_{min}) \cdot (y_{max} - y_{min})}{x_{max} - x_{min}}$$
+    *Where $x$ is the raw input and $y$ is the physical output (e.g., Percentage).*
+* **Non-Linear LUT:** Employs a Look-Up Table with linear interpolation for non-linear sensors (e.g., NTC Thermistors).
+* **State Table:** Resolves multi-pin inputs (e.g., DPST Switch) into discrete logical states (e.g., `ECO`, `SPORT`).
+* **CAN/J1939:** Supports 29-bit identifiers, PGN filtering, and SPN bit-slicing for vehicle bus communication.
+
+### 3.1.4 EV Feature Implementation (Reference Case: Arduino Uno)
+The following signal mapping is implemented for the Electric Vehicle powertrain feature:
+
+| Signal | Logic Type | HW Resource | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Accelerator** | Linear | `HW_ADC_0` | 0-100% Pedal Position |
+| **Motor_Speed** | Linear | `HW_ADC_1` | 0-8000 RPM Feedback |
+| **Drive_Output**| PWM | `HW_PWM_9` | Motor Controller Duty Cycle |
+| **Drive_Mode** | State Table | `HW_DIG_2`, `HW_DIG_3` | Mode Selection (Eco/Sport/Limp) |
+
+### 3.1.5 Integrity, Validation, and Flashing
+To ensure automotive-grade reliability, the configuration parser enforces the following integrity constraints:
+
+1.  **Schema Validation:** All configuration files must pass validation against a Pydantic-based schema before the system enters `RUN` mode.
+2.  **Manifest Verification:** Files must contain a `manifest` block including a `version` string and a `checksum` (SHA-256). If the checksum fails during a flash update, the system reverts to the `SAFE_BOOT` configuration.
+3.  **Flashing Safety:** During a configuration update (Flashing), the HAL Manager forces all `PWM_OUT` resources to a value of `0` and ignores all `DIGITAL_IN` state changes to prevent unintended vehicle motion.
+4.  **Redundancy Check:** Signals defined with multiple `resource_ids` must satisfy a `REDUNDANT_MATCH` or `COMPLEMENTARY` logic check; otherwise, a `RATIONALITY_FAULT` is triggered.
 
 ---
 
@@ -799,47 +821,82 @@ Electrical reliability is handled at the wiring level to support the **Agent's A
 
 To translate these physical wires into something the Agent understands, the system uses three distinct configuration files:
 
-### Layer 1: Channel Mapping (`channel_mappings.json`)
+### Layer 1: Controls mapping (`controls.json`)
 Defines the human-friendly name for the wire:
 ```json
 {
-  "brake_temp_sensor": {
-    "logical_pin": "sim_output_1",
-    "type": "analog_input",
-    "unit": "celsius"
+  "system_controls": {
+    "Accelerator_Pedal": {
+      "resource_id": "HW_ADC_THROTTLE",
+      "protocol": "RAW",
+      "logic": {
+        "mapping_type": "LINEAR",
+        "unit": "Percentage",
+        "calibration": {
+          "raw_min": 100,
+          "raw_max": 900,
+          "phys_min": 0,
+          "phys_max": 100
+        }
+      }
+    },
+    "Motor_Speed_Feedback": {
+      "resource_id": "HW_ADC_TACHO",
+      "protocol": "RAW",
+      "logic": {
+        "mapping_type": "LINEAR",
+        "unit": "RPM",
+        "calibration": {
+          "raw_min": 0,
+          "raw_max": 1023,
+          "phys_min": 0,
+          "phys_max": 8000
+        }
+      }
+    },
+    "Drive_Motor_Output": {
+      "resource_id": "HW_PWM_MOTOR",
+      "protocol": "RAW",
+      "logic": {
+        "unit": "Duty_Cycle",
+        "freq_hz": 4000
+      }
+    },
+    "Drive_Mode_Switch": {
+      "resource_id": ["HW_DIG_MODE_A", "HW_DIG_MODE_B"],
+      "protocol": "RAW",
+      "logic": {
+        "mode": "STATE_TABLE",
+        "state_map": {
+          "11": "ECO_MODE",
+          "10": "SPORT_MODE",
+          "01": "LIMP_MODE",
+          "00": "FAULT_DISCONNECTED"
+        }
+      }
+    }
   }
 }
 ```
 
-### Layer 2: Simulator Config (`simulator_config.json`)
+### Layer 2: Hardware Config (`hardware.json`)
 Defines where the wire is plugged into the Simulator:
 ```json
 {
-  "logical_pins": {
-    "sim_output_1": {
-      "physical_pin": "D11",
-      "capabilities": ["pwm", "analog_output"],
-      "voltage_range": [0, 5]
-    }
+  "board_metadata": {
+    "target_mcu": "Arduino_Uno",
+    "v_ref": 5.0,
+    "architecture": "AVR"
+  },
+  "resources": {
+    "HW_ADC_THROTTLE": { "pin": "A0", "type": "ANALOG_IN", "bit_depth": 10 },
+    "HW_ADC_TACHO": { "pin": "A1", "type": "ANALOG_IN", "bit_depth": 10 },
+    "HW_PWM_MOTOR": { "pin": 9, "type": "PWM_OUT", "timer": 1 },
+    "HW_DIG_MODE_A": { "pin": 2, "type": "DIGITAL_IN", "pull": "UP" },
+    "HW_DIG_MODE_B": { "pin": 3, "type": "DIGITAL_IN", "pull": "UP" }
   }
 }
 ```
-
-### Layer 3: DUT Limits (`dut_limits.json`)
-Defines what the target wire can safely handle:
-```json
-{
-  "channels": {
-    "brake_temp_sensor": {
-      "physical_pin": "A0",
-      "voltage_range": [0, 3.3],
-      "expected_range": [0.5, 2.5]
-    }
-  }
-}
-```
-
-**Result**: Even though the Simulator *can* output 5V on D11, the SDT will **Auto-Correct** or block any command over 3.3V because the DUT's physical A0 pin is restricted in Layer 3.
 
 # 12. Glossary
 
@@ -902,30 +959,105 @@ class HardwareAbstractionLayer:
             return self.serial_connection.readline().decode().strip()
 ```
 
----
-
-## 13.2 Three-Layer Pin Mapper
-The Pin Mapper enforces safety by reconciling channel names with both simulator capabilities and DUT tolerances.
-
+## 13.2 System Configuration Model
 ```python
-class PinMapper:
-    """Maps user-friendly channel names to physical pins with 3-layer safety"""
+from enum import Enum
+from typing import List, Dict, Union, Optional, Any
+from pydantic import BaseModel, Field, ConfigDict
+
+# --- Shared Enums ---
+
+
+class HardwareType(str, Enum):
+    ANALOG_IN = "ANALOG_IN"
+    DIGITAL_IN = "DIGITAL_IN"
+    PWM_OUT = "PWM_OUT"
+    PWM_IN = "PWM_IN"       # <--- Added PWM Input
+    CAN_BUS = "CAN_BUS"
+
+class PWMCaptureMode(str, Enum):
+    DUTY_CYCLE = "DUTY_CYCLE"
+    FREQUENCY = "FREQUENCY"
+    PULSE_WIDTH_MS = "PULSE_WIDTH_MS"
+
+class ProtocolType(str, Enum):
+    RAW = "RAW"
+    STANDARD_CAN = "STANDARD_CAN"
+    J1939 = "J1939"
+
+class LogicMode(str, Enum):
+    STATE_TABLE = "STATE_TABLE"
+    REDUNDANT_MATCH = "REDUNDANT_MATCH"
+    CAN_READ_ID = "CAN_READ_ID"
+    CAN_SNIFFER = "CAN_SNIFFER"
+
+class MappingType(str, Enum):
+    LINEAR = "LINEAR"
+    NON_LINEAR_LUT = "NON_LINEAR_LUT"
+
+# --- Hardware Models ---
+
+class HardwareResource(BaseModel):
+    type: HardwareType
+    pin: Optional[Union[str, int]] = None
+    mode: Optional[str] = None
+    pull: Optional[str] = None
+    bit_depth: Optional[int] = None
+    supports_extended_id: bool = False
+    # For CAN
+    controller: Optional[str] = None
+    bitrate_kbps: Optional[int] = None
+
+class HardwareConfig(BaseModel):
+    board_metadata: Dict[str, Any]
+    resources: Dict[str, HardwareResource]
+
+# --- Control Logic Sub-Models ---
+
+class Calibration(BaseModel):
+    raw_min: float
+    raw_max: float
+    phys_min: float
+    phys_max: float
+
+class LUTEntry(BaseModel):
+    raw: float
+    phys: float
+
+class ControlLogic(BaseModel):
+    mode: Optional[LogicMode] = None
+    mapping_type: Optional[MappingType] = None
+    unit: Optional[str] = "N/A"
     
-    def __init__(self, channel_map_file: str, simulator_config_file: str, dut_limits_file: str):
-        self.channels = self._load_json(channel_map_file) # Layer 1
-        self.sim_config = self._load_json(simulator_config_file) # Layer 2
-        self.dut_limits = self._load_json(dut_limits_file) # Layer 3
+    # PWM Input Specifics
+    pwm_capture_mode: Optional[PWMCaptureMode] = None
+    expected_freq_range: Optional[List[int]] = None # [min_hz, max_hz] for validation
     
-    def get_effective_limits(self, channel_name: str) -> Dict:
-        """Calculates the most restrictive safety bounds"""
-        logical_pin = self.channels[channel_name]["logical_pin"]
-        sim_limit = self.sim_config["logical_pins"][logical_pin]["voltage_range"]
-        dut_limit = self.dut_limits["channels"][channel_name]["voltage_range"]
-        
-        return {
-            "min": max(sim_limit[0], dut_limit[0]),
-            "max": min(sim_limit[1], dut_limit[1]) # Safest intersection
-        }
+    # State Mapping, Analog Mapping, and CAN fields remain same...
+    state_map: Optional[Dict[str, str]] = None
+    calibration: Optional[Calibration] = None
+    lookup_table: Optional[List[LUTEntry]] = None
+    
+    # CAN / J1939 Fields
+    pgn: Optional[int] = None
+    spn: Optional[int] = None
+    msg_id: Optional[str] = None
+    bit_start: Optional[int] = None
+    bit_length: Optional[int] = None
+    resolution: float = 1.0
+    offset: float = 0.0
+
+# --- Main Controls Model ---
+
+class ControlSignal(BaseModel):
+    # This allows 'resource_id' to be a single string OR a list (Double Pole Support)
+    resource_id: Union[str, List[str]]
+    protocol: ProtocolType = ProtocolType.RAW
+    logic: ControlLogic
+    metadata: Optional[Dict[str, Any]] = None
+
+class ControlsConfig(BaseModel):
+    system_controls: Dict[str, ControlSignal]  
 ```
 
 ---
