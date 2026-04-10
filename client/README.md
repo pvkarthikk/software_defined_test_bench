@@ -11,6 +11,75 @@ A comprehensive Python client library for interacting with the Virtual Test Engi
 - **Configuration Management**: Persistent client configuration
 - **Error Handling**: Robust error handling and retry logic
 
+## Client-Server Architecture
+
+```mermaid
+graph TB
+    subgraph Client["Python Client<br/>(VTE Client Library)"]
+        API_Client["VTE Client<br/>(Async)"]
+        ConfigMgr["Config Manager<br/>~/.vte_client/config.json"]
+        Models["Pydantic Models<br/>Type Safety"]
+        Retry["Retry Logic<br/>Error Handling"]
+    end
+    
+    Network["HTTP/WebSocket<br/>Network"]
+    
+    subgraph Server["Virtual Test Engineer<br/>(REST API Server)"]
+        FastAPI["FastAPI<br/>Application"]
+        
+        subgraph Endpoints["API Endpoints"]
+            Health["Health Check"]
+            Channels["Channel Ops<br/>(read/write)"]
+            Tests["Test Execution<br/>(run/status)"]
+            Flash["Firmware Flash<br/>(upload/flash)"]
+        end
+        
+        subgraph Core["Core Engine"]
+            DevMgr["Device Manager"]
+            TestEngine["Test Engine"]
+            FlashMgr["Flash Manager"]
+        end
+        
+        WebSocket["WebSocket<br/>Real-time Streaming"]
+    end
+    
+    Hardware["Hardware<br/>ECU / Sensors"]
+    
+    ConfigMgr --> API_Client
+    API_Client --> Models
+    Models --> Retry
+    API_Client -->|"async/await calls"| Network
+    
+    Network -->|"HTTP Requests/Responses"| FastAPI
+    Network -->|"WebSocket"| WebSocket
+    
+    FastAPI --> Health
+    FastAPI --> Channels
+    FastAPI --> Tests
+    FastAPI --> Flash
+    
+    Health --> DevMgr
+    Channels --> DevMgr
+    Tests --> TestEngine
+    Flash --> FlashMgr
+    
+    DevMgr --> Core
+    TestEngine --> Core
+    FlashMgr --> Core
+    
+    WebSocket -->|"stream updates"| API_Client
+    
+    Core --> Hardware
+    Hardware -->|"sensor data"| Core
+    
+    style Client fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style Server fill:#50E3C2,stroke:#333,stroke-width:2px,color:#fff
+    style Network fill:#B8E986,stroke:#333,stroke-width:2px
+    style Hardware fill:#F5A623,stroke:#333,stroke-width:2px,color:#fff
+    style Endpoints fill:#F8E71C,stroke:#333,stroke-width:1px
+    style Core fill:#F8E71C,stroke:#333,stroke-width:1px
+```
+
 ## Installation
 
 ### From Source
