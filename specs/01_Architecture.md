@@ -11,32 +11,129 @@ The Virtual Test Engineer is a software-defined test bench platform designed for
 - **Layered Control**: Supports both low-level device commands and high-level test sequences
 - **Configuration-Driven**: Test bench setup via YAML/JSON files enables easy reconfiguration for different DUTs
 
-## System Context Diagram
+## System Context & Detailed Layered Architecture Diagram
 
 ```mermaid
 graph TD
-    Agent["Test Agent<br/>(HTTP Client)"]
-    WebApp["Web Dashboard<br/>(Optional)"]
-    VTE["Virtual Test Engineer<br/>REST API + WebSocket"]
-    ECU["Physical ECU/DUT<br/>Hardware"]
-    Config["YAML/JSON<br/>Configuration"]
-    Firmware["Firmware<br/>Files"]
+    Client1["Test Agent<br/>REST Client"]
+    Client2["Web Dashboard<br/>WebSocket Client"]
     
-    Agent -->|"REST API Calls"| VTE
-    WebApp -->|"REST API Calls"| VTE
-    VTE -->|"Hardware Control"| ECU
-    ECU -->|"Sensor Data"| VTE
-    Config -->|"Load Config"| VTE
-    Firmware -->|"Flash Firmware"| VTE
-    VTE -->|"Program Device"| ECU
+    subgraph API["Layer 5: REST API & Gateway"]
+        CH_EP["Channel Endpoints<br/>/channels/{id}<br/>read/write/stream"]
+        TEST_EP["Test Endpoints<br/>/runs<br/>start/stop/status"]
+        FLASH_EP["Flash Endpoints<br/>/flash<br/>upload/flash/verify"]
+        HEALTH_EP["Health/Discovery<br/>/health /config<br/>capabilities"]
+        WS["WebSocket Server<br/>Real-time Streams<br/>Event Broadcasting"]
+        CORS["CORS & Auth<br/>Rate Limiting"]
+    end
     
-    style VTE fill:#4A90E2,stroke:#333,stroke-width:3px,color:#fff
-    style Agent fill:#E8F0F7,stroke:#333,stroke-width:2px
-    style WebApp fill:#E8F0F7,stroke:#333,stroke-width:2px
-    style ECU fill:#F5A623,stroke:#333,stroke-width:2px
-    style Config fill:#E8F0F7,stroke:#333,stroke-width:2px
-    style Firmware fill:#E8F0F7,stroke:#333,stroke-width:2px
+    subgraph FlashManager["Layer 4: Flashing Manager"]
+        PROG["Protocol Handler<br/>UART, JTAG, SPI"]
+        VERIFY["Verification<br/>Checksum, Readback"]
+        RECOVER["Recovery Logic<br/>Error Handling"]
+    end
+    
+    subgraph TestEngine["Layer 3: Test Execution Engine"]
+        EXECUTOR["Scenario Executor<br/>Step Parser<br/>Conditional Logic"]
+        STATE_MACHINE["State Machine<br/>idle, running<br/>paused, error"]
+        DATA_LOGGER["Data Logger<br/>CSV Writer<br/>Artifact Generator"]
+        VALIDATOR["Validator<br/>Assertions<br/>Range Checks"]
+    end
+    
+    subgraph DevManager["Layer 2: Device Manager"]
+        DISCOVERY["Discovery Engine<br/>Plugin Scanner<br/>Channel Registry"]
+        CHANNEL_MGR["Channel Manager<br/>Read/Write Ops<br/>Caching"]
+        BUS_MGR["Bus Manager<br/>Message Routing<br/>Protocol Handlers"]
+        STATE_MGR["State Manager<br/>Value Cache<br/>Timestamps"]
+        RESOURCE_MGR["Resource Manager<br/>Conflict Detection<br/>Allocation"]
+    end
+    
+    subgraph HAL["Layer 1: Hardware Abstraction Layer"]
+        PLUGIN_MGR["Plugin Manager<br/>Dynamic Loading<br/>Lifecycle"]
+        
+        subgraph GPIO_PLUGIN["GPIO Plugin"]
+            GPIO_DRV["GPIO Driver<br/>Digital I/O<br/>PWM, Interrupt"]
+            GPIO_CH["GPIO Channels"]
+        end
+        
+        subgraph CAN_PLUGIN["CAN Plugin"]
+            CAN_DRV["CAN Driver<br/>Message TX/RX<br/>Filtering"]
+            CAN_BUS["CAN Bus Interface"]
+        end
+        
+        subgraph ANALOG_PLUGIN["Analog Plugin"]
+            ADC_DRV["ADC Driver<br/>Sampling<br/>Conversion"]
+            DAC_DRV["DAC Driver<br/>Signal Gen<br/>Scaling"]
+            ANALOG_CH["Analog Channels"]
+        end
+        
+        subgraph CUSTOM_PLUGIN["Custom Plugin"]
+            CUSTOM_DRV["User Plugin<br/>Custom Logic<br/>Extension"]
+            CUSTOM_CH["Custom Channels"]
+        end
+    end
+    
+    HW["Physical Hardware<br/>ECU/DUT/Sensors"]
+    
+    Client1 -->|"HTTP<br/>REST Calls"| CH_EP
+    Client1 -->|"HTTP"| TEST_EP
+    Client1 -->|"HTTP"| FLASH_EP
+    Client1 -->|"HTTP"| HEALTH_EP
+    Client2 -->|"WebSocket<br/>Subscribe"| WS
+    
+    CH_EP -->|"Control"| CHANNEL_MGR
+    TEST_EP -->|"Orchestrate"| EXECUTOR
+    FLASH_EP -->|"Program"| PROG
+    HEALTH_EP -->|"Query"| DISCOVERY
+    
+    EXECUTOR -->|"Read/Write"| CHANNEL_MGR
+    EXECUTOR -->|"Log Data"| DATA_LOGGER
+    EXECUTOR -->|"Validate"| VALIDATOR
+    STATE_MACHINE -->|"Broadcast"| WS
+    
+    CHANNEL_MGR -->|"Query"| STATE_MGR
+    CHANNEL_MGR -->|"Check"| RESOURCE_MGR
+    BUS_MGR -->|"Route"| CHANNEL_MGR
+    DISCOVERY -->|"Register"| CHANNEL_MGR
+    
+    STATE_MGR -->|"Update"| CHANNEL_MGR
+    PLUGIN_MGR -->|"Create"| CHANNEL_MGR
+    
+    RESOURCE_MGR -->|"Allocate"| GPIO_DRV
+    RESOURCE_MGR -->|"Allocate"| CAN_DRV
+    RESOURCE_MGR -->|"Allocate"| ADC_DRV
+    RESOURCE_MGR -->|"Allocate"| CUSTOM_DRV
+    
+    GPIO_DRV -->|"Control"| HW
+    CAN_DRV -->|"Send/Recv"| HW
+    ADC_DRV -->|"Read"| HW
+    DAC_DRV -->|"Output"| HW
+    CUSTOM_DRV -->|"Interface"| HW
+    
+    HW -->|"Sensor Data"| ADC_DRV
+    HW -->|"Status"| GPIO_DRV
+    HW -->|"Messages"| CAN_DRV
+    
+    DATA_LOGGER -->|"Write"| Artifacts["Output Artifacts<br/>CSV, JSON, Logs"]
+    
+    style API fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style FlashManager fill:#50E3C2,stroke:#333,stroke-width:2px,color:#000
+    style TestEngine fill:#F8E71C,stroke:#333,stroke-width:2px,color:#000
+    style DevManager fill:#B8E986,stroke:#333,stroke-width:2px,color:#000
+    style HAL fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style GPIO_PLUGIN fill:#FFB3BA,stroke:#333,stroke-width:1px
+    style CAN_PLUGIN fill:#FFB3BA,stroke:#333,stroke-width:1px
+    style ANALOG_PLUGIN fill:#FFB3BA,stroke:#333,stroke-width:1px
+    style CUSTOM_PLUGIN fill:#FFB3BA,stroke:#333,stroke-width:1px
+    style HW fill:#F5A623,stroke:#333,stroke-width:3px
 ```
+
+**C4 Container Diagram - Detailed 5-Layer Architecture**: 
+- **Layer 5 (REST API)**: Health, channels, tests, flashing endpoints; WebSocket; CORS/auth
+- **Layer 4 (Flashing)**: Protocol handlers (UART/JTAG/SPI), verification, recovery
+- **Layer 3 (Test Engine)**: Executor, state machine, logging, validation
+- **Layer 2 (Device Manager)**: Discovery, channel/bus managers, state, resource allocation
+- **Layer 1 (HAL)**: Plugin system with GPIO, CAN, Analog, Custom plugins; hardware drivers
 
 ## Component Architecture
 

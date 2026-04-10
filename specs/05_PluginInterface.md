@@ -4,64 +4,132 @@
 
 The Virtual Test Engineer uses a plugin architecture to support different types of hardware interfaces and instruments. Plugins are dynamically loaded at runtime and provide standardized interfaces for channel operations, bus communication, and device management.
 
-## Plugin Architecture Diagram
+## Detailed Plugin Architecture - Lifecycle & Interface Diagram
 
 ```mermaid
 graph TD
-    Config["Configuration<br/>(YAML)"]
-    PM["PluginManager"]
-    FS["File System<br/>/drivers/plugins/"]
+    Config["YAML Configuration<br/>plugins section"]
+    START["Application Startup"]
     
-    subgraph Discovery["Plugin Discovery"]
-        Scan["Scan Directories"]
-        Load["Load Python Modules"]
-        Detect["Detect PluginInterface"]
+    subgraph Phase1["Phase 1: Discovery"]
+        FS["FileSystem Scanner<br/>/drivers/plugins/"]
+        DIR_SCAN["Enumerate plugin<br/>directories"]
+        INSPECT["Inspect __init__.py<br/>and module files"]
     end
     
-    subgraph Interface["Plugin Interface"]
-        Base["PluginInterface<br/>(Abstract Base Class)"]
-        InitMeth["initialize(config)<br/>shutdown()"]
-        ChannelMeth["create_channel()<br/>create_bus()"]
-        Props["plugin_type<br/>supported_types"]
+    subgraph Phase2["Phase 2: Loading"]
+        PY_IMPORT["Python import<br/>sys.path manipulation"]
+        CLASS_DETECT["Detect PluginInterface<br/>subclasses"]
+        ATTR_CHECK["Check plugin_type<br/>supported_types"]
     end
     
-    subgraph Concrete["Concrete Plugins"]
-        GPIO_P["GPIO Plugin<br/>Digital I/O, PWM"]
-        ANALOG_P["Analog Plugin<br/>ADC, DAC"]
-        CAN_P["CAN Plugin<br/>Network Bus"]
-        CUSTOM_P["Custom Plugin<br/>User Extension"]
+    subgraph Phase3["Phase 3: Instantiation"]
+        INSTANTIATE["Create Plugin<br/>Instance"]
+        INIT_CALL["Call initialize()<br/>with config"]
+        STATE_SET["Set plugin_state<br/>to LOADED"]
     end
     
-    subgraph Instances["Plugin Instances"]
-        CH1["Channel 1<br/>Digital Input/Output"]
-        CH2["Channel 2<br/>Analog Value"]
-        BUS1["Bus 1<br/>CAN Network"]
-        CH3["Custom Channel"]
+    subgraph Interface["PluginInterface Contract"]
+        BASE["Abstract Base:<br/>PluginInterface"]
+        
+        INIT_METHOD["initialize(config)<br/>→ bool"]
+        SHUTDOWN_METHOD["shutdown()<br/>→ None"]
+        
+        CREATE_CH["create_channel<br/>(config)<br/>→ Optional[Channel]"]
+        CREATE_BUS["create_bus<br/>(config)<br/>→ Optional[Bus]"]
+        
+        TYPE_PROP["@property<br/>plugin_type: str"]
+        CH_TYPES["@property<br/>supported_channel_types<br/>: List[str]"]
+        BUS_TYPES["@property<br/>supported_bus_types<br/>: List[str]"]
     end
     
-    Config -->|"specifies plugins"| PM
-    PM --> Scan
-    Scan --> FS
-    FS --> Load
-    Load --> Detect
-    Detect --> Base
-    Base --> InitMeth
-    Base --> ChannelMeth
-    Base --> Props
-    InitMeth --> GPIO_P
-    ChannelMeth --> ANALOG_P
-    Props --> CAN_P
-    GPIO_P --> CH1
-    ANALOG_P --> CH2
-    CAN_P --> BUS1
-    CUSTOM_P --> CH3
+    subgraph GPIO_IMPL["GPIO Plugin<br/>(gpio_driver.py)"]
+        GPIO_CLASS["class GPIOPlugin<br/>(PluginInterface)"]
+        GPIO_INIT["initialize():<br/>Setup GPIO lib<br/>Configure pins"]
+        GPIO_SHUT["shutdown():<br/>Cleanup pins<br/>Release resources"]
+        GPIO_CH_CREATE["create_channel():<br/>Return DigitalChannel<br/>or PWMChannel"]
+        GPIO_BUS_CREATE["create_bus():<br/>Return None<br/>(no bus)"]
+        GPIO_TYPE["plugin_type:<br/>'gpio'"]
+        GPIO_TYPES["supported_channel_types:<br/>['digital', 'pwm']"]
+    end
     
-    style PM fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
-    style Discovery fill:#50E3C2,stroke:#333,stroke-width:2px,color:#fff
+    subgraph ANALOG_IMPL["Analog Plugin<br/>(analog_driver.py)"]
+        ANALOG_CLASS["class AnalogPlugin<br/>(PluginInterface)"]
+        ANALOG_INIT["initialize():<br/>Init ADC/DAC<br/>Set sampling"]
+        ANALOG_SHUT["shutdown():<br/>Close converters"]
+        ANALOG_CH_CREATE["create_channel():<br/>Return ADCChannel<br/>or DACChannel"]
+        ANALOG_BUS_CREATE["create_bus():<br/>Return None<br/>(no bus)"]
+        ANALOG_TYPE["plugin_type:<br/>'analog'"]
+        ANALOG_TYPES["supported_channel_types:<br/>['adc', 'dac']"]
+    end
+    
+    subgraph CAN_IMPL["CAN Plugin<br/>(can_driver.py)"]
+        CAN_CLASS["class CANPlugin<br/>(PluginInterface)"]
+        CAN_INIT["initialize():<br/>Setup CAN interface<br/>Configure bitrate"]
+        CAN_SHUT["shutdown():<br/>Close CAN socket"]
+        CAN_CH_CREATE["create_channel():<br/>Return CANChannel<br/>(single msg)"]
+        CAN_BUS_CREATE["create_bus():<br/>Return CANBus<br/>(msg streaming)"]
+        CAN_TYPE["plugin_type:<br/>'can'"]
+        CAN_TYPES["supported_bus_types:<br/>['can', 'can_fd']"]
+    end
+    
+    INSTANCES["Channel/Bus Instances<br/>(Created channels<br/>registered with<br/>Device Manager)"]
+    
+    START -->|"Load config"| Config
+    Config -->|"List plugins"| Phase1
+    FS -->|"Traverse dirs"| DIR_SCAN
+    DIR_SCAN -->|"Get modules"| INSPECT
+    INSPECT -->|"Ready to load"| Phase2
+    
+    PY_IMPORT -->|"Import modules"| CLASS_DETECT
+    CLASS_DETECT -->|"Find subclass"| ATTR_CHECK
+    ATTR_CHECK -->|"Validated"| Phase3
+    
+    INSTANTIATE -->|"__init__()"| Phase3
+    INIT_CALL -->|"Config passed"| Phase3
+    STATE_SET -->|"LOADED"| Phase3
+    
+    BASE --> INIT_METHOD
+    BASE --> SHUTDOWN_METHOD
+    BASE --> CREATE_CH
+    BASE --> CREATE_BUS
+    BASE --> TYPE_PROP
+    BASE --> CH_TYPES
+    BASE --> BUS_TYPES
+    
+    INIT_METHOD -.->|"implements"| GPIO_INIT
+    INIT_METHOD -.->|"implements"| ANALOG_INIT
+    INIT_METHOD -.->|"implements"| CAN_INIT
+    
+    CREATE_CH -.->|"implements"| GPIO_CH_CREATE
+    CREATE_CH -.->|"implements"| ANALOG_CH_CREATE
+    CREATE_CH -.->|"implements"| CAN_CH_CREATE
+    
+    GPIO_CLASS -->|"is-a"| BASE
+    ANALOG_CLASS -->|"is-a"| BASE
+    CAN_CLASS -->|"is-a"| BASE
+    
+    GPIO_CLASS -->|"instances"| INSTANCES
+    ANALOG_CLASS -->|"instances"| INSTANCES
+    CAN_CLASS -->|"instances"| INSTANCES
+    
+    style Phase1 fill:#50E3C2,stroke:#333,stroke-width:1px,color:#000
+    style Phase2 fill:#50E3C2,stroke:#333,stroke-width:1px,color:#000
+    style Phase3 fill:#50E3C2,stroke:#333,stroke-width:1px,color:#000
     style Interface fill:#B8E986,stroke:#333,stroke-width:2px
-    style Concrete fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
-    style Instances fill:#F8E71C,stroke:#333,stroke-width:2px
+    style GPIO_IMPL fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style ANALOG_IMPL fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style CAN_IMPL fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style BASE fill:#B8E986,stroke:#333,stroke-width:2px
+    style INSTANCES fill:#F8E71C,stroke:#333,stroke-width:2px
 ```
+
+**C4 Component Diagram - Plugin Lifecycle & Interface**:
+- **Phase 1 (Discovery)**: Scan `/drivers/plugins/`, find subdirectories and modules
+- **Phase 2 (Loading)**: Import Python modules, detect PluginInterface subclasses
+- **Phase 3 (Instantiation)**: Create instances, call initialize() with config
+- **Interface Contract**: 7 abstract methods that all plugins must implement
+- **Implementations**: GPIO, Analog, CAN plugins showing how each implements the interface
 
 ## Plugin Discovery
 

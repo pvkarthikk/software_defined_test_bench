@@ -11,74 +11,175 @@ A comprehensive Python client library for interacting with the Virtual Test Engi
 - **Configuration Management**: Persistent client configuration
 - **Error Handling**: Robust error handling and retry logic
 
-## Client-Server Architecture
+## Detailed Client-Server Architecture
 
 ```mermaid
 graph TB
-    subgraph Client["Python Client<br/>(VTE Client Library)"]
-        API_Client["VTE Client<br/>(Async)"]
-        ConfigMgr["Config Manager<br/>~/.vte_client/config.json"]
-        Models["Pydantic Models<br/>Type Safety"]
-        Retry["Retry Logic<br/>Error Handling"]
-    end
-    
-    Network["HTTP/WebSocket<br/>Network"]
-    
-    subgraph Server["Virtual Test Engineer<br/>(REST API Server)"]
-        FastAPI["FastAPI<br/>Application"]
+    subgraph ClientLib["Python Client Library<br/>(vte_client package)"]
         
-        subgraph Endpoints["API Endpoints"]
-            Health["Health Check"]
-            Channels["Channel Ops<br/>(read/write)"]
-            Tests["Test Execution<br/>(run/status)"]
-            Flash["Firmware Flash<br/>(upload/flash)"]
+        subgraph ConfigMgmt["Configuration Management"]
+            ConfigMgr["ConfigManager<br/>Load/Save config"]
+            ConfigFile["~/.vte_client/<br/>config.json<br/>server_url<br/>timeout<br/>retry_attempts"]
         end
         
-        subgraph Core["Core Engine"]
-            DevMgr["Device Manager"]
-            TestEngine["Test Engine"]
-            FlashMgr["Flash Manager"]
+        subgraph AsyncClient["Async HTTP Client"]
+            VteClient["VirtualTestEngineer<br/>Client<br/>async/await"]
+            Connector["aiohttp.ClientSession<br/>Connection Pooling<br/>SSL Support"]
+            Serializer["Request/Response<br/>Serializer<br/>JSON<br/>Pydantic"]  
         end
         
-        WebSocket["WebSocket<br/>Real-time Streaming"]
+        subgraph Operations["High-Level Operations"]
+            HEALTH["health_check()"]
+            SYS_OPS["list_channels()<br/>get_channel_info()"]
+            CH_OPS["read_channel()<br/>write_channel()"]
+            STREAM["stream_channels()<br/>async generator"]
+            TEST_OPS["run_test()<br/>get_test_status()"]
+            FLASH_OPS["upload_firmware()<br/>flash_device()"]
+        end
+        
+        subgraph ErrorHdl["Error Handling"]
+            RETRY["RetryPolicy<br/>exponential backoff<br/>max_attempts"]
+            EXCEPTION["VTEException<br/>ConnectionError<br/>TimeoutError"]
+        end
+        
+        ConfigMgr -->|"Load"| ConfigFile
+        VteClient -->|"Config"| ConfigMgr
+        VteClient -->|"Pool"| Connector
+        VteClient -->|"Serialize"| Serializer
+        
+        HEALTH -->|"Call"| VteClient
+        SYS_OPS -->|"Call"| VteClient
+        CH_OPS -->|"Call"| VteClient
+        STREAM -->|"Subscribe"| VteClient
+        TEST_OPS -->|"Call"| VteClient
+        FLASH_OPS -->|"Call"| VteClient
+        
+        VteClient -->|"Retry"| RETRY
+        VteClient -->|"Raise"| EXCEPTION
     end
     
-    Hardware["Hardware<br/>ECU / Sensors"]
+    Network["Network Layer<br/>HTTP/1.1 + WebSocket<br/>TLS/SSL (optional)<br/>default localhost:8080"]
     
-    ConfigMgr --> API_Client
-    API_Client --> Models
-    Models --> Retry
-    API_Client -->|"async/await calls"| Network
+    subgraph ServerApp["FastAPI Server<br/>(REST API)"]
+        
+        subgraph ASGI["ASGI Application<br/>(Uvicorn)"]
+            FastAPI_App["FastAPI()<br/>Async request handler<br/>Middleware stack"]
+            Middleware["CORS, Auth, Logging<br/>Rate Limiting<br/>Request Timeout"]
+        end
+        
+        subgraph HealthEndpoint["Health & Discovery"]
+            HEALTH_EP["GET /health<br/>→ {'status': 'ok'}"]
+            CONFIG_EP["GET /config<br/>→ testbench config<br/>plugins, channels"]
+            DISCOVER_EP["GET /capabilities<br/>→ system features"]
+        end
+        
+        subgraph ChannelEndpoint["Channel Operations"]
+            LIST_CH["GET /channels<br/>→ list all channels"]
+            READ_CH["GET /channels/{id}<br/>→ {'value': ...}"]
+            WRITE_CH["POST /channels/{id}<br/>body:{'value': ...}"]
+            STREAM_CH["WebSocket /stream<br/>→ continuous updates"]
+        end
+        
+        subgraph TestEndpoint["Test Execution"]
+            RUN_TEST["POST /runs<br/>body: test config<br/>→ run_id"]
+            STATUS_TEST["GET /runs/{id}<br/>→ status, progress"]
+            CANCEL_TEST["DELETE /runs/{id}<br/>→ stop test"]
+            RESULTS_TEST["GET /results/{id}<br/>→ CSV, JSON, logs"]
+        end
+        
+        subgraph FlashEndpoint["Firmware Operations"]
+            LIST_FW["GET /flash/files<br/>→ available firmware"]
+            UPLOAD_FW["POST /flash/upload<br/>multipart file upload"]
+            FLASH_FW["POST /flash<br/>program device<br/>verify checksum"]
+            STATUS_FW["GET /flash/status<br/>→ progress, result"]
+        end
+        
+        subgraph CoreEngine["Core Engine"]
+            DeviceManager["Device Manager<br/>Channel registry<br/>Plugin orchestration<br/>State caching"]
+            TestExecutor["Test Executor<br/>Scenario parser<br/>Step execution<br/>Conditional logic"]
+            FlashManager["Flash Manager<br/>Protocol handlers<br/>UART, JTAG, SPI<br/>Verification"]
+            DataLogger["Data Logger<br/>CSV writer<br/>JSON export<br/>Artifact generation"]
+        end
+        
+        FastAPI_App -->|"Route"| Middleware
+        Middleware -->|"Dispatch"| HEALTH_EP
+        Middleware -->|"Dispatch"| LIST_CH
+        Middleware -->|"Dispatch"| READ_CH
+        Middleware -->|"Dispatch"| WRITE_CH
+        Middleware -->|"Dispatch"| STREAM_CH
+        Middleware -->|"Dispatch"| RUN_TEST
+        Middleware -->|"Dispatch"| FLASH_FW
+        
+        HEALTH_EP -->|"Query"| DeviceManager
+        CONFIG_EP -->|"Query"| DeviceManager
+        LIST_CH -->|"Query"| DeviceManager
+        READ_CH -->|"Read value"| DeviceManager
+        WRITE_CH -->|"Write value"| DeviceManager
+        STREAM_CH -->|"Subscribe"| DeviceManager
+        RUN_TEST -->|"Execute"| TestExecutor
+        STATUS_TEST -->|"Query"| TestExecutor
+        RESULTS_TEST -->|"Fetch"| DataLogger
+        UPLOAD_FW -->|"Store"| FlashManager
+        FLASH_FW -->|"Program"| FlashManager
+    end
     
-    Network -->|"HTTP Requests/Responses"| FastAPI
-    Network -->|"WebSocket"| WebSocket
+    subgraph Hardware["Hardware Layer"]
+        ECU["ECU / DUT<br/>(Device Under Test)"]
+        GPIO_HW["GPIO Lines<br/>Digital I/O"]
+        CAN_HW["CAN Bus<br/>Network Interface"]
+        ANALOG_HW["Analog Signals<br/>Sensors/Actuators"]
+    end
     
-    FastAPI --> Health
-    FastAPI --> Channels
-    FastAPI --> Tests
-    FastAPI --> Flash
+    HEALTH -->|"HTTP GET"| Network
+    SYS_OPS -->|"HTTP GET"| Network
+    CH_OPS -->|"HTTP GET/POST"| Network
+    STREAM -->|"WebSocket"| Network
+    TEST_OPS -->|"HTTP POST/GET"| Network
+    FLASH_OPS -->|"HTTP POST"| Network
     
-    Health --> DevMgr
-    Channels --> DevMgr
-    Tests --> TestEngine
-    Flash --> FlashMgr
+    Network -->|"HTTP"| FastAPI_App
+    Network -->|"WebSocket"| STREAM_CH
     
-    DevMgr --> Core
-    TestEngine --> Core
-    FlashMgr --> Core
+    DeviceManager -->|"Control"| GPIO_HW
+    DeviceManager -->|"Control"| CAN_HW
+    DeviceManager -->|"Sample"| ANALOG_HW
+    TestExecutor -->|"Read/Write"| DeviceManager
+    FlashManager -->|"Program"| ECU
+    DataLogger -->|"Log"| Artifacts["Output Files<br/>CSV, JSON, Logs"]
     
-    WebSocket -->|"stream updates"| API_Client
+    GPIO_HW -->|"Connected to"| ECU
+    CAN_HW -->|"Connected to"| ECU
+    ANALOG_HW -->|"Connected to"| ECU
     
-    Core --> Hardware
-    Hardware -->|"sensor data"| Core
+    ECU -->|"Feedback"| GPIO_HW
+    ECU -->|"Messages"| CAN_HW
+    ECU -->|"Sensor Data"| ANALOG_HW
     
-    style Client fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
-    style Server fill:#50E3C2,stroke:#333,stroke-width:2px,color:#fff
-    style Network fill:#B8E986,stroke:#333,stroke-width:2px
+    STREAM_CH -->|"Broadcast<br/>to client"| Serializer
+    
+    style ClientLib fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style ConfigMgmt fill:#50E3C2,stroke:#333,stroke-width:1px
+    style AsyncClient fill:#50E3C2,stroke:#333,stroke-width:1px
+    style Operations fill:#50E3C2,stroke:#333,stroke-width:1px
+    style ErrorHdl fill:#50E3C2,stroke:#333,stroke-width:1px
+    style ServerApp fill:#B8E986,stroke:#333,stroke-width:2px
+    style ASGI fill:#50E3C2,stroke:#333,stroke-width:1px
+    style HealthEndpoint fill:#F8E71C,stroke:#333,stroke-width:1px
+    style ChannelEndpoint fill:#F8E71C,stroke:#333,stroke-width:1px
+    style TestEndpoint fill:#F8E71C,stroke:#333,stroke-width:1px
+    style FlashEndpoint fill:#F8E71C,stroke:#333,stroke-width:1px
+    style CoreEngine fill:#50E3C2,stroke:#333,stroke-width:1px
     style Hardware fill:#F5A623,stroke:#333,stroke-width:2px,color:#fff
-    style Endpoints fill:#F8E71C,stroke:#333,stroke-width:1px
-    style Core fill:#F8E71C,stroke:#333,stroke-width:1px
+    style Network fill:#B8E986,stroke:#333,stroke-width:2px
+    style Artifacts fill:#E8F0F7,stroke:#333,stroke-width:2px
 ```
+
+**C4 Container Diagram - Detailed Client-Server Architecture**:
+- **Client Library**: Configuration management, async HTTP/WebSocket, type-safe operations, retry logic
+- **API Endpoints**: Health, channels (read/write/stream), test execution, firmware operations
+- **Core Engine**: Device Manager (orchestration), Test Executor (scenario running), Flash Manager, Data Logger
+- **Data Flow**: Client async calls → HTTP/WebSocket → Server endpoints → Core engine → Hardware control
+- **Output**: Test results, logs, and artifacts streamed back to client
 
 ## Installation
 

@@ -12,22 +12,63 @@ A software-defined test bench platform for automotive ECU testing and validation
 - **Configuration-Driven**: YAML/JSON setup for easy test bench reconfiguration
 - **Firmware Flashing**: Built-in support for programming ECUs with various protocols
 
-## System Context
+## System Context (C4 Diagram)
 
 ```mermaid
 graph TD
-    A["Test Engineer<br/>(External Agent)"] -->|"HTTP/REST<br/>WebSocket"| VTE["Virtual Test Engineer<br/>(VTE System)"]
-    VTE -->|"GPIO, PWM<br/>CAN, Analog"| ECU["ECU / DUT<br/>(Device Under Test)"]
-    VTE -->|"Read/Write"| Config["Configuration<br/>Files<br/>(YAML/JSON)"]
-    ECU -->|"Sensor Data"| VTE
+    A["Test Engineer<br/>Automation Agent"]
+    W["Web Dashboard<br/>Monitor"]
+    CI["CI/CD Pipeline<br/>Integration Tests"]
+    
+    VTE["Virtual Test Engineer<br/>REST API Server<br/>Async WebSocket"]
+    
+    ECU["ECU/DUT<br/>Hardware Device"]
+    GPIO_HW["GPIO Lines<br/>Digital I/O"]
+    CAN_HW["CAN Bus<br/>Network"]
+    ANALOG_HW["Analog Signals<br/>Sensors"]
+    
+    Config["YAML/JSON<br/>Configuration<br/>Files"]
+    Firmware["Firmware<br/>Binaries"]
+    Logs["Logs & Artifacts<br/>Test Results"]
+    
+    A -->|"REST API<br/>GET/POST/DELETE"| VTE
+    W -->|"REST API<br/>WebSocket Streams"| VTE
+    CI -->|"REST API<br/>Async Test Runs"| VTE
+    
+    VTE -->|"Control Signals"| GPIO_HW
+    VTE -->|"CAN Frames"| CAN_HW
+    VTE -->|"Analog Voltages"| ANALOG_HW
+    
+    GPIO_HW --> ECU
+    CAN_HW --> ECU
+    ANALOG_HW --> ECU
+    
+    ECU -->|"Sensor Readings"| GPIO_HW
+    ECU -->|"CAN Messages"| CAN_HW
+    ECU -->|"Analog Feedback"| ANALOG_HW
+    
+    GPIO_HW -->|"Read Values"| VTE
+    CAN_HW -->|"Receive Frames"| VTE
+    ANALOG_HW -->|"Read Samples"| VTE
+    
+    Config -->|"Load Configuration"| VTE
+    Firmware -->|"Program Device"| VTE
+    VTE -->|"CSV, JSON, Logs"| Logs
     
     style VTE fill:#4A90E2,stroke:#333,stroke-width:3px,color:#fff
     style A fill:#E8F0F7,stroke:#333,stroke-width:2px
-    style ECU fill:#F5A623,stroke:#333,stroke-width:2px
+    style W fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style CI fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style ECU fill:#F5A623,stroke:#333,stroke-width:3px,color:#fff
+    style GPIO_HW fill:#FFB3BA,stroke:#333,stroke-width:2px
+    style CAN_HW fill:#FFB3BA,stroke:#333,stroke-width:2px
+    style ANALOG_HW fill:#FFB3BA,stroke:#333,stroke-width:2px
     style Config fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style Firmware fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style Logs fill:#E8F0F7,stroke:#333,stroke-width:2px
 ```
 
-**C4 Context**: External agents interact with the Virtual Test Engineer via REST API to read/write channels on the Device Under Test (ECU). Configuration drives test bench behavior.
+**Context Diagram Details**: Multiple external actors (test engineers, dashboards, CI/CD pipelines) interact with VTE via REST API and WebSocket. The system controls hardware interfaces (GPIO, CAN, Analog) connected to ECU/DUT and manages configuration/firmware files, producing test logs and artifacts.
 
 ## Documentation
 
