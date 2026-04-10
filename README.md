@@ -12,6 +12,23 @@ A software-defined test bench platform for automotive ECU testing and validation
 - **Configuration-Driven**: YAML/JSON setup for easy test bench reconfiguration
 - **Firmware Flashing**: Built-in support for programming ECUs with various protocols
 
+## System Context
+
+```mermaid
+graph TD
+    A["Test Engineer<br/>(External Agent)"] -->|"HTTP/REST<br/>WebSocket"| VTE["Virtual Test Engineer<br/>(VTE System)"]
+    VTE -->|"GPIO, PWM<br/>CAN, Analog"| ECU["ECU / DUT<br/>(Device Under Test)"]
+    VTE -->|"Read/Write"| Config["Configuration<br/>Files<br/>(YAML/JSON)"]
+    ECU -->|"Sensor Data"| VTE
+    
+    style VTE fill:#4A90E2,stroke:#333,stroke-width:3px,color:#fff
+    style A fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style ECU fill:#F5A623,stroke:#333,stroke-width:2px
+    style Config fill:#E8F0F7,stroke:#333,stroke-width:2px
+```
+
+**C4 Context**: External agents interact with the Virtual Test Engineer via REST API to read/write channels on the Device Under Test (ECU). Configuration drives test bench behavior.
+
 ## Documentation
 
 📖 **[Complete User Guide](USER_GUIDE.md)** - Learn how to:

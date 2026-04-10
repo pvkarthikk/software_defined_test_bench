@@ -11,6 +11,33 @@ The Virtual Test Engineer is a software-defined test bench platform designed for
 - **Layered Control**: Supports both low-level device commands and high-level test sequences
 - **Configuration-Driven**: Test bench setup via YAML/JSON files enables easy reconfiguration for different DUTs
 
+## System Context Diagram
+
+```mermaid
+graph TD
+    Agent["Test Agent<br/>(HTTP Client)"]
+    WebApp["Web Dashboard<br/>(Optional)"]
+    VTE["Virtual Test Engineer<br/>REST API + WebSocket"]
+    ECU["Physical ECU/DUT<br/>Hardware"]
+    Config["YAML/JSON<br/>Configuration"]
+    Firmware["Firmware<br/>Files"]
+    
+    Agent -->|"REST API Calls"| VTE
+    WebApp -->|"REST API Calls"| VTE
+    VTE -->|"Hardware Control"| ECU
+    ECU -->|"Sensor Data"| VTE
+    Config -->|"Load Config"| VTE
+    Firmware -->|"Flash Firmware"| VTE
+    VTE -->|"Program Device"| ECU
+    
+    style VTE fill:#4A90E2,stroke:#333,stroke-width:3px,color:#fff
+    style Agent fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style WebApp fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style ECU fill:#F5A623,stroke:#333,stroke-width:2px
+    style Config fill:#E8F0F7,stroke:#333,stroke-width:2px
+    style Firmware fill:#E8F0F7,stroke:#333,stroke-width:2px
+```
+
 ## Component Architecture
 
 ### 1. Hardware Abstraction Layer (HAL)
@@ -47,7 +74,68 @@ The Virtual Test Engineer is a software-defined test bench platform designed for
   - Scenario management and execution
   - Real-time streaming via WebSocket
   - Configuration validation and loading
+### Layered Architecture Diagram
 
+```mermaid
+graph TD
+    Client["External Agent<br/>Test Client"]
+    
+    subgraph API["Layer 5: REST API"]
+        endpoints["HTTP Endpoints<br/>Channels, Tests, Flashing"]
+        websocket["WebSocket<br/>Real-time Streaming"]
+    end
+    
+    subgraph FlashManager["Layer 4: Flashing Manager"]
+        flash["Firmware Programming<br/>Protocol Handlers"]
+    end
+    
+    subgraph TestEngine["Layer 3: Test Execution Engine"]
+        executor["Scenario Executor<br/>Step Orchestration"]
+        logger["Data Logger<br/>CSV/Artifacts"]
+    end
+    
+    subgraph DevManager["Layer 2: Device Manager"]
+        discover["Channel/Bus Discovery"]
+        state["State Management"]
+        resources["Resource Allocation"]
+    end
+    
+    subgraph HAL["Layer 1: Hardware Abstraction Layer"]
+        gpio["GPIO Driver"]
+        can["CAN Driver"]
+        analog["Analog Driver"]
+        plugins["Plugin System"]
+    end
+    
+    ECU["Physical Hardware<br/>ECU/DUT"]
+    
+    Client -->|"REST Calls"| endpoints
+    Client -->|"WebSocket"| websocket
+    endpoints --> executor
+    endpoints --> discover
+    endpoints --> flash
+    executor --> discover
+    executor --> logger
+    discover --> state
+    state --> resources
+    resources --> gpio
+    resources --> can
+    resources --> analog
+    plugins --> gpio
+    plugins --> can
+    plugins --> analog
+    gpio --> ECU
+    can --> ECU
+    analog --> ECU
+    ECU -->|"Sensor Data"| analog
+    
+    style API fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style FlashManager fill:#50E3C2,stroke:#333,stroke-width:2px,color:#fff
+    style TestEngine fill:#F8E71C,stroke:#333,stroke-width:2px,color:#000
+    style DevManager fill:#B8E986,stroke:#333,stroke-width:2px,color:#000
+    style HAL fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style ECU fill:#F5A623,stroke:#333,stroke-width:3px
+```
 ## Plugin Architecture
 
 ### Plugin Discovery
@@ -108,6 +196,61 @@ class PluginInterface(ABC):
 - **Analog Plugin**: ADC/DAC operations with scaling
 - **CAN Plugin**: Network message handling with streaming
 - **Custom Plugins**: User-defined device types via plugin interface
+
+### Plugin Integration Component Diagram
+
+```mermaid
+graph TD
+    PM["PluginManager<br/>(Core Component)"]
+    FS["File System Scanner<br/>/drivers/plugins/"]
+    PI["PluginInterface<br/>(Abstract Base)"]
+    
+    subgraph GPIO["GPIO Plugin"]
+        GPIO_DRV["gpio_driver.py<br/>PluginInterface impl"]
+        GPIO_CH["Channel: Digital I/O<br/>PWM"]
+    end
+    
+    subgraph ANALOG["Analog Plugin"]
+        ANALOG_DRV["analog_driver.py<br/>PluginInterface impl"]
+        ANALOG_CH["Channel: ADC/DAC<br/>Scaling"]
+    end
+    
+    subgraph CAN["CAN Plugin"]
+        CAN_DRV["can_driver.py<br/>PluginInterface impl"]
+        CAN_BS["Bus: CAN Network<br/>Message Streaming"]
+    end
+    
+    subgraph CUSTOM["Custom Plugin"]
+        CUSTOM_DRV["custom_driver.py<br/>PluginInterface impl"]
+        CUSTOM_CH["Channel/Bus<br/>User-defined"]
+    end
+    
+    DM["Device Manager"]
+    
+    FS -->|"Scan for drivers"| PM
+    PM -->|"Load & Instantiate"| PI
+    PI --> GPIO_DRV
+    PI --> ANALOG_DRV
+    PI --> CAN_DRV
+    PI --> CUSTOM_DRV
+    GPIO_DRV --> GPIO_CH
+    ANALOG_DRV --> ANALOG_CH
+    CAN_DRV --> CAN_BS
+    CUSTOM_DRV --> CUSTOM_CH
+    PM -->|"Register channels/buses"| DM
+    GPIO_CH --> DM
+    ANALOG_CH --> DM
+    CAN_BS --> DM
+    CUSTOM_CH --> DM
+    
+    style PM fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style PI fill:#B8E986,stroke:#333,stroke-width:2px
+    style GPIO fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style ANALOG fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style CAN fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style CUSTOM fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style DM fill:#F8E71C,stroke:#333,stroke-width:2px
+```
 
 ## Configuration Lifecycle
 

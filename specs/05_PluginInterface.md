@@ -4,6 +4,65 @@
 
 The Virtual Test Engineer uses a plugin architecture to support different types of hardware interfaces and instruments. Plugins are dynamically loaded at runtime and provide standardized interfaces for channel operations, bus communication, and device management.
 
+## Plugin Architecture Diagram
+
+```mermaid
+graph TD
+    Config["Configuration<br/>(YAML)"]
+    PM["PluginManager"]
+    FS["File System<br/>/drivers/plugins/"]
+    
+    subgraph Discovery["Plugin Discovery"]
+        Scan["Scan Directories"]
+        Load["Load Python Modules"]
+        Detect["Detect PluginInterface"]
+    end
+    
+    subgraph Interface["Plugin Interface"]
+        Base["PluginInterface<br/>(Abstract Base Class)"]
+        InitMeth["initialize(config)<br/>shutdown()"]
+        ChannelMeth["create_channel()<br/>create_bus()"]
+        Props["plugin_type<br/>supported_types"]
+    end
+    
+    subgraph Concrete["Concrete Plugins"]
+        GPIO_P["GPIO Plugin<br/>Digital I/O, PWM"]
+        ANALOG_P["Analog Plugin<br/>ADC, DAC"]
+        CAN_P["CAN Plugin<br/>Network Bus"]
+        CUSTOM_P["Custom Plugin<br/>User Extension"]
+    end
+    
+    subgraph Instances["Plugin Instances"]
+        CH1["Channel 1<br/>Digital Input/Output"]
+        CH2["Channel 2<br/>Analog Value"]
+        BUS1["Bus 1<br/>CAN Network"]
+        CH3["Custom Channel"]
+    end
+    
+    Config -->|"specifies plugins"| PM
+    PM --> Scan
+    Scan --> FS
+    FS --> Load
+    Load --> Detect
+    Detect --> Base
+    Base --> InitMeth
+    Base --> ChannelMeth
+    Base --> Props
+    InitMeth --> GPIO_P
+    ChannelMeth --> ANALOG_P
+    Props --> CAN_P
+    GPIO_P --> CH1
+    ANALOG_P --> CH2
+    CAN_P --> BUS1
+    CUSTOM_P --> CH3
+    
+    style PM fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style Discovery fill:#50E3C2,stroke:#333,stroke-width:2px,color:#fff
+    style Interface fill:#B8E986,stroke:#333,stroke-width:2px
+    style Concrete fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style Instances fill:#F8E71C,stroke:#333,stroke-width:2px
+```
+
 ## Plugin Discovery
 
 Plugins are discovered through filesystem scanning of the `/drivers/plugins/` directory. Each plugin must be in its own subdirectory with the following structure:

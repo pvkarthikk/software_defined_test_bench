@@ -2,6 +2,70 @@
 
 ## Arduino ECU Throttle Control Example
 
+### System Architecture for Arduino Example
+
+```mermaid
+graph TD
+    TE["Test Engineer<br/>(API Client)"]
+    
+    subgraph VTE["Virtual Test Engineer Server"]
+        API["REST API<br/>Endpoints"]
+        DevMgr["Device Manager"]
+        
+        subgraph Plugins["Plugin System"]
+            GPIO_P["GPIO Plugin<br/>pins: 2,3,4,5,6,7,8,9"]
+            ANALOG_P["Analog Plugin<br/>channels: A0-A3"]
+            CAN_P["CAN Plugin<br/>bitrate: 500k"]
+        end
+        
+        subgraph Channels["Channels"]
+            CH1["throttle_position<br/>(ADC scaled)"]
+            CH2["engine_speed<br/>(PWM 0-100)"]  
+            CH3["eco_mode<br/>(Digital)"]
+        end
+        
+        subgraph Buses["Buses"]
+            BUS1["can_bus<br/>(500kbps)"]
+        end
+    end
+    
+    subgraph Arduino["Arduino Uno<br/>(ECU/DUT)"]
+        THROTTLE["Throttle Sensor<br/>(A0)"]
+        ENGINE["Engine Speed Output<br/>(PIN 9 PWM)"]
+        MODE["Eco/Sport Mode<br/>(PIN 2 Digital)"]
+        CAN_HW["CAN Transceiver<br/>(can0)"]
+    end
+    
+    TE -->|"GET/POST Channels"| API
+    API --> DevMgr
+    DevMgr --> GPIO_P
+    DevMgr --> ANALOG_P
+    DevMgr --> CAN_P
+    GPIO_P --> CH2
+    GPIO_P --> CH3
+    ANALOG_P --> CH1
+    CAN_P --> BUS1
+    
+    CH1 --> THROTTLE
+    CH2 --> ENGINE
+    CH3 --> MODE
+    BUS1 --> CAN_HW
+    
+    THROTTLE -->|"Sensor Data"| ANALOG_P
+    ENGINE -->|"PWM Control"| GPIO_P
+    MODE -->|"Digital I/O"| GPIO_P
+    CAN_HW -->|"CAN Messages"| CAN_P
+    
+    style VTE fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style API fill:#50E3C2,stroke:#333,stroke-width:1px
+    style DevMgr fill:#50E3C2,stroke:#333,stroke-width:1px
+    style Plugins fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style Channels fill:#F8E71C,stroke:#333,stroke-width:1px
+    style Buses fill:#F8E71C,stroke:#333,stroke-width:1px
+    style Arduino fill:#F5A623,stroke:#333,stroke-width:2px,color:#fff
+    style TE fill:#E8F0F7,stroke:#333,stroke-width:2px
+```
+
 ### Hardware Setup
 - Arduino Uno with throttle position sensor (analog input A0)
 - PWM output pin 9 connected to engine speed indicator
