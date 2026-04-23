@@ -52,7 +52,7 @@
     {
       "id": "w1776969143131",
       "type": "numeric",
-      "channel": "ch_temp",
+      "channel": "engine_speed_2",
       "label": "sadfsadf",
       "position": {
         "row": 0,

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, Optional, Type
+from typing import Dict, Optional, Type, List
 from core.base_device import BaseDevice
 from core.plugin_loader import PluginLoader
 from core.config_manager import ConfigManager
@@ -20,38 +20,39 @@ class DeviceManager:
         Discovers device plugins and initializes them with their respective configs.
         """
         plugin_classes = PluginLoader.discover_plugins(self.device_dir)
+        plugin_map: Dict[str, Type[BaseDevice]] = {cls.__name__: cls for cls in plugin_classes}
         
         # Temporary ConfigManager pointed at device directory for per-device configs
         device_config_manager = ConfigManager(self.device_dir)
 
-        for cls in plugin_classes:
-            # convention: device_name.py has device_name.json
-            # PluginLoader currently gives us classes. 
-            # We might need the filename or a way to derive the config name.
-            # Let's assume the class name or a property can help, 
-            # but for now we'll look for device_<classname_lower>.json
-            config_name = f"device_{cls.__name__.lower()}"
-            
-            try:
-                # Load device-specific configuration
-                config = device_config_manager.load_config(config_name, DeviceConfig)
-                
-                # Instantiate the device
-                device_instance = cls()
-                
-                # Store by the ID specified in the config
-                device_id = config.id
-                self.devices[device_id] = device_instance
-                self.device_configs[device_id] = config
-                
-                logger.info(f"Initialized device: {device_id} using {config_name}.json")
-            except Exception as e:
-                logger.error(f"Failed to initialize device class {cls.__name__}: {e}")
+        # Look for all .json files in the device directory
+        for filename in os.listdir(self.device_dir):
+            if filename.endswith(".json") and filename.startswith("device_"):
+                config_name = filename[:-5]
+                try:
+                    # Load device-specific configuration
+                    config = device_config_manager.load_config(config_name, DeviceConfig)
+                    
+                    plugin_class = plugin_map.get(config.plugin)
+                    if not plugin_class:
+                        logger.error(f"Plugin class '{config.plugin}' not found for device '{config.id}'")
+                        continue
+
+                    # Instantiate the device
+                    device_instance = plugin_class()
+                    
+                    # Store by the ID specified in the config
+                    device_id = config.id
+                    self.devices[device_id] = device_instance
+                    self.device_configs[device_id] = config
+                    
+                    logger.info(f"Initialized device: {device_id} using {config.plugin} plugin ({config_name}.json)")
+                except Exception as e:
+                    logger.error(f"Failed to initialize device config {filename}: {e}")
 
     def connect_all(self):
         """
         Attempts to connect all initialized devices.
-        Failed connections are logged but don't stop the process.
         """
         for device_id, device in self.devices.items():
             config = self.device_configs[device_id]
