@@ -28,7 +28,7 @@
     {
       "id": "w1776968659924",
       "type": "led",
-      "channel": "ch_temp",
+      "channel": "light",
       "label": "sadf",
       "position": {
         "row": 0,

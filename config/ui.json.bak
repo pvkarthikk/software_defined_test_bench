@@ -60,6 +60,30 @@
       },
       "min": null,
       "max": null
+    },
+    {
+      "id": "w1776969164099",
+      "type": "waveform",
+      "channel": "ch_temp",
+      "label": "asdf",
+      "position": {
+        "row": 0,
+        "col": 0
+      },
+      "min": null,
+      "max": null
+    },
+    {
+      "id": "w1776969170323",
+      "type": "button",
+      "channel": "ch_temp",
+      "label": "asfasdf",
+      "position": {
+        "row": 0,
+        "col": 0
+      },
+      "min": null,
+      "max": null
     }
   ]
 }
