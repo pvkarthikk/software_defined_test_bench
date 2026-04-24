@@ -14,70 +14,22 @@
       "max": null
     },
     {
-      "id": "w1776968648076",
-      "type": "gauge",
-      "channel": "ch_temp",
-      "label": "assadf",
-      "position": {
-        "row": 0,
-        "col": 0
-      },
-      "min": null,
-      "max": null
-    },
-    {
-      "id": "w1776968659924",
-      "type": "led",
-      "channel": "light",
-      "label": "sadf",
-      "position": {
-        "row": 0,
-        "col": 0
-      },
-      "min": null,
-      "max": null
-    },
-    {
-      "id": "w1776968663412",
-      "type": "slider",
-      "channel": "ch_temp",
-      "label": "asdfasd",
-      "position": {
-        "row": 0,
-        "col": 0
-      },
-      "min": null,
-      "max": null
-    },
-    {
-      "id": "w1776969143131",
-      "type": "numeric",
-      "channel": "engine_speed_2",
-      "label": "sadfsadf",
-      "position": {
-        "row": 0,
-        "col": 0
-      },
-      "min": null,
-      "max": null
-    },
-    {
-      "id": "w1776969164099",
-      "type": "waveform",
-      "channel": "ch_temp",
-      "label": "asdf",
-      "position": {
-        "row": 0,
-        "col": 0
-      },
-      "min": null,
-      "max": null
-    },
-    {
-      "id": "w1776969170323",
+      "id": "w1777005927282",
       "type": "button",
-      "channel": "ch_temp",
-      "label": "asfasdf",
+      "channel": "check_light",
+      "label": "check_light_button",
+      "position": {
+        "row": 0,
+        "col": 0
+      },
+      "min": null,
+      "max": null
+    },
+    {
+      "id": "w1777006212186",
+      "type": "led",
+      "channel": "check_light",
+      "label": "feedback",
       "position": {
         "row": 0,
         "col": 0

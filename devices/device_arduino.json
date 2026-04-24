@@ -1,0 +1,12 @@
+{
+  "id": "arduino_uno",
+  "plugin": "ArduinoFirmataDevice",
+  "connection_params": {
+    "port": "COM3",
+    "baud": 57600,
+    "arduino_wait": 2
+  },
+  "settings": {
+    "board_type": "uno"
+  }
+}
