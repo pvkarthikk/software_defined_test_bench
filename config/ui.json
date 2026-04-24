@@ -14,9 +14,9 @@
       "max": null
     },
     {
-      "id": "w1777005927282",
+      "id": "w1777024820198",
       "type": "button",
-      "channel": "check_light",
+      "channel": "light",
       "label": "check_light_button",
       "position": {
         "row": 0,
@@ -26,9 +26,9 @@
       "max": null
     },
     {
-      "id": "w1777006212186",
+      "id": "w1777024873974",
       "type": "led",
-      "channel": "check_light",
+      "channel": "light",
       "label": "feedback",
       "position": {
         "row": 0,

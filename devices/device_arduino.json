@@ -2,7 +2,7 @@
   "id": "arduino_uno",
   "plugin": "ArduinoFirmataDevice",
   "connection_params": {
-    "port": "COM3",
+    "port": "COM4",
     "baud": 57600,
     "arduino_wait": 2
   },

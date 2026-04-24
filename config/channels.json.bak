@@ -1,13 +1,26 @@
 [
   {
     "channel_id": "ch_temp",
-    "device_id": "arduino_uno",
-    "signal_id": "A0",
+    "device_id": "arduino_r4",
+    "signal_id": "pwm_in",
     "properties": {
       "unit": "\u00c2\u00b0C",
       "min": -40.0,
       "max": 150.0,
       "resolution": 10.0,
+      "offset": 0.0,
+      "value": 0.0
+    }
+  },
+  {
+    "channel_id": "light",
+    "device_id": "arduino_r4",
+    "signal_id": "d13_out",
+    "properties": {
+      "unit": "",
+      "min": 0.0,
+      "max": 100.0,
+      "resolution": 1.0,
       "offset": 0.0,
       "value": 0.0
     }
