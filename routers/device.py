@@ -42,7 +42,8 @@ async def get_device_details(device_id: str):
         "id": device_id,
         "vendor": device.vendor,
         "model": device.model,
-        "firmware_version": device.firmware_version
+        "firmware_version": device.firmware_version,
+        "status": "online" if device.is_connected else "offline"
     }
 
 @router.get("/{device_id}/signal")

@@ -16,6 +16,40 @@
     --toolbar-height: 48px;
 }
 
+/* LUCIDE ICON SIZING */
+svg[class~="lucide"],
+i[data-lucide] > svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+/* Logo icon slightly larger */
+.logo svg[class~="lucide"] {
+    width: 20px;
+    height: 20px;
+}
+
+/* Sidebar nav icons */
+.nav-item svg[class~="lucide"] {
+    width: 20px;
+    height: 20px;
+}
+
+/* Small buttons get smaller icons */
+.btn-sm svg[class~="lucide"] {
+    width: 14px;
+    height: 14px;
+}
+
+/* Icon-only buttons */
+.btn-icon svg[class~="lucide"] {
+    width: 14px;
+    height: 14px;
+}
+
+
 * {
     box-sizing: border-box;
     margin: 0;

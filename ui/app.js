@@ -109,10 +109,10 @@ function setupSystemControls() {
 function syncStatus(isConnected) {
     state.status = isConnected ? 'online' : 'offline';
     updateStatusIndicator(state.status, isConnected ? 'Connected' : 'Disconnected');
-    
+
     const btnConnect = document.getElementById('btn-connect');
     const btnDisconnect = document.getElementById('btn-disconnect');
-    
+
     if (isConnected) {
         if (btnConnect) btnConnect.classList.add('hidden');
         if (btnDisconnect) btnDisconnect.classList.remove('hidden');
@@ -121,6 +121,12 @@ function syncStatus(isConnected) {
         if (btnConnect) btnConnect.classList.remove('hidden');
         if (btnDisconnect) btnDisconnect.classList.add('hidden');
         stopPolling();
+    }
+
+    // Refresh devices list to reflect new online/offline state
+    if (state.currentView === 'devices') {
+        refreshDevices();
+        if (state.activeDeviceId) updateDeviceSignalsList(state.activeDeviceId);
     }
 }
 
@@ -234,31 +240,23 @@ function updateWaveform(poly, val, widget) {
     const ch = state.channels.find(c => c.channel_id === widget.channel);
     const min = ch ? ch.properties.min : 0, max = ch ? ch.properties.max : 100, range = max - min || 1;
     waveformHistory[widget.id].push(40 - ((val - min) / range * 40));
+    console.log(waveformHistory[widget.id]);
     if (waveformHistory[widget.id].length > 50) waveformHistory[widget.id].shift();
     poly.setAttribute('points', waveformHistory[widget.id].map((v, i) => `${i * 2},${v}`).join(' '));
 }
 
 window.widgetWrite = async (id, val) => { try { await apiPut(`/channel/${id}?value=${val}`, {}); } catch (e) { addLog(`Write failed: ${e.message}`, 'error'); } };
 
-async function refreshAllData() { 
+async function refreshAllData() {
     console.log('[SDTB] refreshAllData: starting...');
-    
-    // 1. Load basic configs first
-    await Promise.all([refreshChannels(), refreshUIConfig()]); 
-    
-    // 2. Check system status and sync buttons/polling
+    await Promise.all([refreshChannels(), refreshUIConfig()]);
     try {
         console.log('[SDTB] Checking /system status...');
         const status = await apiGet('/system');
         console.log('[SDTB] System status:', status);
         syncStatus(status.is_connected === true);
-    } catch (e) { 
-        console.error('[SDTB] Status check failed:', e);
-        addLog('Status check fail: ' + e.message, 'error'); 
-    }
-    
-    // 3. Finally render the UI
-    renderDashboard(); 
+    } catch (e) { console.error('[SDTB] Status check failed:', e); addLog('Status check fail: ' + e.message, 'error'); }
+    renderDashboard();
     console.log('[SDTB] refreshAllData: complete');
 }
 
@@ -406,10 +404,16 @@ function subscribeToChannel(id) {
     s.onmessage = (e) => {
         const val = Number(JSON.parse(e.data).value);
         state.uiConfig.widgets.forEach(w => { if (w.channel === id) updateWidgetValue(w, val); });
+
+        // Update waveform chart data
         if (state.waveform.history[id] && state.waveform.history[id].enabled && !state.waveform.paused) {
-            state.waveform.history[id].data.push({t: Date.now(), v: val});
+            state.waveform.history[id].data.push({ t: Date.now(), v: val });
             if (state.waveform.history[id].data.length > 1000) state.waveform.history[id].data.shift();
         }
+
+        // Update live value in waveform config bar
+        const waveValEl = document.getElementById(`wave-val-${id}`);
+        if (waveValEl) waveValEl.innerText = val.toFixed(2);
     };
 }
 
@@ -422,7 +426,8 @@ async function refreshDevices() {
         state.devices.forEach(dev => {
             const item = document.createElement('div');
             item.className = 'device-item';
-            item.innerHTML = `<div class="flex-row" style="justify-content: space-between"><strong>${dev.id}</strong><span class="status-badge ${dev.is_connected ? 'online' : 'offline'}">${dev.is_connected ? 'Connected' : 'Offline'}</span></div><div style="font-size: 0.8rem; color: #94a3b8; margin-top: 5px">${dev.vendor} ${dev.model}</div>`;
+            const isOnline = dev.status === 'online' || dev.status === 'connected';
+            item.innerHTML = `<div class="flex-row" style="justify-content: space-between"><strong>${dev.id}</strong><span class="status-badge ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span></div><div style="font-size: 0.8rem; color: #94a3b8; margin-top: 5px">${dev.vendor} ${dev.model}</div>`;
             item.onclick = () => showDeviceSignals(dev.id);
             list.appendChild(item);
         });
@@ -441,20 +446,97 @@ async function updateDeviceSignalsList(id) {
     if (!det) return;
     try {
         const sigs = await apiGet(`/device/${id}/signal`);
-        let h = `<div class="detail-header"><h3>Signals for ${id}</h3></div><table class="table"><thead><tr><th>ID</th><th>Name</th><th>Dir</th><th>Range</th><th>Display</th></tr></thead><tbody>`;
+        const dev = state.devices.find(d => d.id === id);
+        const isOnline = dev ? (dev.status === 'online' || dev.status === 'connected') : false;
+        let h = `<div class="detail-header"><h3>Signals for ${id} <span class="status-badge-sm ${isOnline ? 'online' : 'offline'}" style="font-size: 0.7rem; padding: 2px 6px">${isOnline ? 'Online' : 'Offline'}</span></h3></div><table class="table"><thead><tr><th>ID</th><th>Name</th><th>Dir</th><th>Range</th><th>Display</th></tr></thead><tbody>`;
         sigs.forEach(s => { h += `<tr><td><code class="badge badge-sm">${s.signal_id}</code></td><td>${s.name}</td><td>${s.direction}</td><td>${s.min}-${s.max} ${s.unit}</td><td><strong id="sig-val-${s.signal_id}">${Number(s.value).toFixed(2)}</strong></td></tr>`; });
         det.innerHTML = h + '</tbody></table>';
     } catch (e) { det.innerHTML = `Error: ${e.message}`; stopDevicePolling(); }
 }
 
+let waveformChart = null;
+
 function setupWaveformViewer() {
-    const c = document.getElementById('waveform-canvas');
+    const c = document.getElementById('waveform-chart-container');
     if (!c) return;
-    state.waveform.plotter = new WaveformPlotter(c);
+
+    waveformChart = new CanvasJS.Chart("waveform-chart-container", {
+        zoomEnabled: true,
+        panEnabled: true,
+        animationEnabled: false,
+        theme: "dark1",
+        backgroundColor: "transparent",
+        axisX: {
+            title: "Time",
+            valueFormatString: "HH:mm:ss",
+            gridColor: "rgba(255, 255, 255, 0.1)",
+            labelFontColor: "#94a3b8",
+            titleFontColor: "#94a3b8"
+        },
+        axisY: {
+            gridColor: "rgba(255, 255, 255, 0.1)",
+            includeZero: false,
+            labelFontColor: "#94a3b8"
+        },
+        data: []
+    });
+
     const btnP = document.getElementById('btn-waveform-pause');
-    if (btnP) btnP.onclick = () => { state.waveform.paused = !state.waveform.paused; btnP.innerHTML = state.waveform.paused ? '<i data-lucide="play"></i> Resume' : '<i data-lucide="pause"></i> Pause'; lucide.createIcons(); };
+    if (btnP) btnP.onclick = () => {
+        state.waveform.paused = !state.waveform.paused;
+        btnP.innerHTML = state.waveform.paused ? '<i data-lucide="play"></i> Resume' : '<i data-lucide="pause"></i> Pause';
+        lucide.createIcons();
+    };
     const btnC = document.getElementById('btn-waveform-clear');
-    if (btnC) btnC.onclick = () => { Object.keys(state.waveform.history).forEach(id => state.waveform.history[id].data = []); state.waveform.plotter.resetView(); };
+    if (btnC) btnC.onclick = () => {
+        Object.keys(state.waveform.history).forEach(id => state.waveform.history[id].data = []);
+    };
+
+    function updateChart() {
+        if (state.currentView !== 'waveform') {
+            requestAnimationFrame(updateChart);
+            return;
+        }
+
+        const now = Date.now();
+        const datasets = [];
+
+        Object.keys(state.waveform.history).forEach(id => {
+            const chan = state.waveform.history[id];
+            if (!chan.enabled || chan.data.length === 0) return;
+
+            datasets.push({
+                type: "stepLine",
+                name: id,
+                color: chan.color,
+                xValueType: "dateTime",
+                markerSize: 0,
+                lineThickness: 2,
+                lineDashType: chan.style === 'dashed' ? "dash" : chan.style === 'dotted' ? "dot" : "solid",
+                dataPoints: chan.data.map(p => ({ x: p.t, y: p.v }))
+            });
+        });
+
+        if (waveformChart) {
+            waveformChart.options.data = datasets;
+
+            if (!state.waveform.paused) {
+                if (!waveformChart.options.axisX) waveformChart.options.axisX = {};
+                waveformChart.options.axisX.viewportMinimum = now - 10000;
+                waveformChart.options.axisX.viewportMaximum = now;
+                waveformChart.render();
+            } else {
+                if (waveformChart.options.axisX && waveformChart.options.axisX.viewportMinimum !== null) {
+                    waveformChart.options.axisX.viewportMinimum = null;
+                    waveformChart.options.axisX.viewportMaximum = null;
+                    waveformChart.render();
+                }
+            }
+        }
+
+        requestAnimationFrame(updateChart);
+    }
+    requestAnimationFrame(updateChart);
 }
 
 function initWaveformViewer() {
@@ -463,12 +545,31 @@ function initWaveformViewer() {
         if (!list) return;
         list.innerHTML = '';
         state.channels.forEach(ch => {
-            const color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+            const color = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
             const item = document.createElement('div');
             item.className = 'waveform-channel-item';
-            item.innerHTML = `<div class="waveform-channel-header"><input type="checkbox" onchange="toggleWaveformChannel('${ch.channel_id}', this.checked)"><strong>${ch.channel_id}</strong></div><div class="flex-row" style="gap: 5px"><input type="color" value="${color}" onchange="setWaveformColor('${ch.channel_id}', this.value)"><select class="table-input" onchange="setWaveformStyle('${ch.channel_id}', this.value)"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div>`;
+            item.style.cssText = 'display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.2);';
+            item.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" onchange="toggleWaveformChannel('${ch.channel_id}', this.checked)">
+                        <strong>${ch.channel_id}</strong>
+                    </label>
+                    <span id="wave-val-${ch.channel_id}" style="font-family: monospace; font-size: 0.9rem; color: ${color};">--</span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="color" value="${color}" style="width: 28px; height: 28px; padding: 0; border: none; border-radius: 4px; flex-shrink: 0; cursor: pointer;" onchange="setWaveformColor('${ch.channel_id}', this.value)">
+                    <select class="table-input" style="flex: 1; padding: 4px; height: 28px; font-size: 0.8rem;" onchange="setWaveformStyle('${ch.channel_id}', this.value)">
+                        <option value="solid">Solid</option>
+                        <option value="dashed">Dashed</option>
+                        <option value="dotted">Dotted</option>
+                    </select>
+                </div>
+            `;
             list.appendChild(item);
-            if (!state.waveform.history[ch.channel_id]) state.waveform.history[ch.channel_id] = { data: [], color: color, style: 'solid', enabled: false };
+            if (!state.waveform.history[ch.channel_id]) {
+                state.waveform.history[ch.channel_id] = { data: [], color: color, style: 'solid', enabled: false };
+            }
         });
     });
 }
@@ -476,46 +577,6 @@ function initWaveformViewer() {
 window.toggleWaveformChannel = (id, e) => { if (state.waveform.history[id]) { state.waveform.history[id].enabled = e; if (e) subscribeToChannel(id); } };
 window.setWaveformColor = (id, c) => { if (state.waveform.history[id]) state.waveform.history[id].color = c; };
 window.setWaveformStyle = (id, s) => { if (state.waveform.history[id]) state.waveform.history[id].style = s; };
-
-class WaveformPlotter {
-    constructor(c) {
-        this.canvas = c; this.ctx = c.getContext('2d');
-        this.padding = { left: 60, right: 20, top: 20, bottom: 40 };
-        this.zoom = {x:1,y:1}; this.offset = {x:0,y:0}; this.isPanning = false; this.lastMouse = {x:0,y:0};
-        this.initEvents(); this.animate();
-    }
-    initEvents() {
-        this.canvas.addEventListener('mousedown', e => { this.isPanning = true; this.lastMouse = {x:e.clientX,y:e.clientY}; });
-        window.addEventListener('mousemove', e => { if (!this.isPanning) return; this.offset.x -= (e.clientX - this.lastMouse.x)/this.zoom.x; this.offset.y += (e.clientY - this.lastMouse.y)/this.zoom.y; this.lastMouse = {x:e.clientX,y:e.clientY}; });
-        window.addEventListener('mouseup', () => this.isPanning = false);
-        this.canvas.addEventListener('wheel', e => { if (state.currentView !== 'waveform') return; e.preventDefault(); const f = e.deltaY > 0 ? 0.9 : 1.1; this.zoom.x *= f; this.zoom.y *= f; }, { passive: false });
-    }
-    resetView() { this.zoom = {x:1,y:1}; this.offset = {x:0,y:0}; }
-    animate() { this.draw(); requestAnimationFrame(() => this.animate()); }
-    draw() {
-        if (state.currentView !== 'waveform') return;
-        const {width, height} = this.canvas;
-        if (this.canvas.width !== this.canvas.clientWidth) { this.canvas.width = this.canvas.clientWidth; this.canvas.height = this.canvas.clientHeight; }
-        const ctx = this.ctx; ctx.clearRect(0,0,width,height);
-        const graphW = width - this.padding.left - this.padding.right, graphH = height - this.padding.top - this.padding.bottom;
-        ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(this.padding.left, this.padding.top); ctx.lineTo(this.padding.left, height - this.padding.bottom); ctx.lineTo(width - this.padding.right, height - this.padding.bottom); ctx.stroke();
-        ctx.font = '10px monospace'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
-        const now = Date.now(), timeWindow = 10000 / this.zoom.x;
-        for (let i = 0; i <= 5; i++) { const y = height - this.padding.bottom - (i / 5) * graphH; ctx.fillText((i * 20).toFixed(0), this.padding.left - 10, y + 3); ctx.strokeStyle = 'rgba(75, 85, 99, 0.2)'; ctx.beginPath(); ctx.moveTo(this.padding.left, y); ctx.lineTo(width - this.padding.right, y); ctx.stroke(); }
-        ctx.textAlign = 'center'; for (let i = 0; i <= 5; i++) { const x = this.padding.left + (i / 5) * graphW; const timeOffset = ((5 - i) / 5) * timeWindow; ctx.fillText((timeOffset / 1000).toFixed(1) + 's', x, height - this.padding.bottom + 20); ctx.beginPath(); ctx.moveTo(x, height - this.padding.bottom); ctx.lineTo(x, height - this.padding.bottom + 5); ctx.stroke(); }
-        ctx.save(); ctx.beginPath(); ctx.rect(this.padding.left, this.padding.top, graphW, graphH); ctx.clip();
-        const legend = document.getElementById('waveform-legend'); if (legend) legend.innerHTML = '';
-        Object.keys(state.waveform.history).forEach(id => {
-            const chan = state.waveform.history[id]; if (!chan.enabled || chan.data.length < 2) return;
-            if (legend) { li = document.createElement('div'); li.className = 'legend-item'; li.style.borderLeftColor = chan.color; li.innerHTML = `<span>${id}</span><strong>${chan.data[chan.data.length-1].v.toFixed(2)}</strong>`; legend.appendChild(li); }
-            ctx.beginPath(); ctx.strokeStyle = chan.color; ctx.lineWidth = 2; if (chan.style === 'dashed') ctx.setLineDash([10,5]); else if (chan.style === 'dotted') ctx.setLineDash([2,2]); else ctx.setLineDash([]);
-            const cfg = state.channels.find(c => c.channel_id === id); const min = cfg ? cfg.properties.min : 0, max = cfg ? cfg.properties.max : 100, range = max - min || 1;
-            chan.data.forEach((p, i) => { const x = width - this.padding.right - ((now - p.t + (this.offset.x * 10)) / timeWindow) * graphW, y = height - this.padding.bottom - ((p.v - min + this.offset.y) / range) * graphH; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
-            ctx.stroke(); ctx.setLineDash([]);
-        });
-        ctx.restore();
-    }
-}
 
 function addLog(m, t = 'info') {
     const d = document.getElementById('debug-window'), tl = document.getElementById('test-log'); if (!d) return;
