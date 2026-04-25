@@ -44,30 +44,42 @@ class BaseDevice(ABC):
     @abstractmethod
     def connect(self, connection_params: dict) -> None:
         """Establishes connection to the hardware device."""
-        pass
+        raise NotImplementedError("Subclasses must implement the connect method.")
 
     @abstractmethod
     def disconnect(self) -> None:
         """Gracefully closes the connection to the hardware device."""
-        pass
+        raise NotImplementedError("Subclasses must implement the disconnect method.")
 
     @abstractmethod
     def get_signals(self) -> List[SignalDefinition]:
         """Returns a list of signals supported by this device."""
-        pass
+        raise NotImplementedError("Subclasses must implement the get_signals method.")
 
     @abstractmethod
     def read_signal(self, signal_id: str) -> Any:
         """Reads a value from the specified signal."""
-        pass
+        raise NotImplementedError("Subclasses must implement the read_signal method.")
 
     @abstractmethod
     def write_signal(self, signal_id: str, value: Any) -> None:
         """Writes a value to the specified signal."""
-        pass
+        raise NotImplementedError("Subclasses must implement the write_signal method.")
 
     def update(self) -> None:
         """Called periodically by the system for background tasks."""
+        pass
+
+    @property
+    @abstractmethod
+    def enabled(self) -> bool:
+        """Returns True if the device is enabled."""
+        pass
+
+    @enabled.setter
+    @abstractmethod
+    def enabled(self, value: bool):
+        """Sets the enabled state of the device."""
         pass
 
 class BaseDeviceException(Exception):

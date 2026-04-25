@@ -51,8 +51,8 @@ class SDTBSystem:
         # Redirect all standard logging to the SSE stream
         from core.stream_manager import SSELogHandler
         sse_handler = SSELogHandler(self.stream_manager)
-        # Simple format: Module: Message
-        sse_handler.setFormatter(logging.Formatter('%(name)s: %(message)s'))
+        # Simple format: LEVEL | Module: Message
+        sse_handler.setFormatter(logging.Formatter('%(levelname)s | %(name)s: %(message)s'))
         logging.getLogger().addHandler(sse_handler)
         
         # Connect test engine results to log stream
@@ -135,6 +135,21 @@ class SDTBSystem:
                     if device.is_connected:
                         try:
                             device.update()
+                            # Push raw signal updates to stream
+                            signals = device.get_signals()
+                            for sig in signals:
+                                self.stream_manager.push_device_signal_update(dev_id, sig.signal_id, sig.value)
+                                
+                            # Push scaled channel updates to stream
+                            # To be efficient, we only iterate channels that belong to this device
+                            for ch in self.channel_manager.get_all_channels():
+                                if ch.device_id == dev_id:
+                                    # Find the corresponding raw signal
+                                    for sig in signals:
+                                        if sig.signal_id == ch.signal_id:
+                                            scaled_value = (sig.value * ch.properties.resolution) + ch.properties.offset
+                                            self.stream_manager.push_channel_update(ch.channel_id, scaled_value)
+                                            break
                         except Exception as e:
                             logger.error(f"Error updating device {dev_id}: {e}")
             except asyncio.CancelledError:

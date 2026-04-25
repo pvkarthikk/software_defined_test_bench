@@ -28,9 +28,10 @@ async def get_system_status():
     }
 
 @router.post("/connect")
-async def connect_system():
+def connect_system():
     """
     Connects all configured hardware devices.
+    Runs in a thread pool to avoid blocking the main event loop.
     """
     try:
         system.device_manager.connect_all()
@@ -39,9 +40,10 @@ async def connect_system():
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/disconnect")
-async def disconnect_system():
+def disconnect_system():
     """
     Gracefully disconnects all hardware devices.
+    Runs in a thread pool to avoid blocking the main event loop.
     """
     try:
         system.device_manager.disconnect_all()
@@ -50,9 +52,10 @@ async def disconnect_system():
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/restart")
-async def restart_system():
+def restart_system():
     """
     Restarts the system: auto-disconnect, re-initialize, and re-discover.
+    Runs in a thread pool to avoid blocking the main event loop.
     """
     try:
         system.restart()

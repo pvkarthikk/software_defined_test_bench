@@ -11,6 +11,7 @@ def generate_mock_value(signal: SignalDefinition):
 class MockDevice(BaseDevice):
     def __init__(self):
         self._connected = False
+        self._enabled = True
         self._signals = [
             SignalDefinition(
                 signal_id="AI0",
@@ -56,6 +57,14 @@ class MockDevice(BaseDevice):
     def firmware_version(self) -> str:
         return "1.0.0"
 
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value: bool):
+        self._enabled = value
+
     def connect(self, connection_params: dict) -> None:
         logger.info(f"MockDevice connecting with {connection_params}")
         self._connected = True
@@ -77,7 +86,6 @@ class MockDevice(BaseDevice):
         if not self._connected:
             raise RuntimeError("Device not connected")
         sig = self.get_signal(signal_id)
-        sig.value = generate_mock_value(sig)
         logger.info(f"MockDevice reading {signal_id} {sig.value}")
         return sig.value
 
@@ -87,3 +95,11 @@ class MockDevice(BaseDevice):
         sig = self.get_signal(signal_id)
         sig.value = value
         logger.info(f"MockDevice writing {value} to {signal_id}")
+    def update(self) -> None:
+        if not self._connected:
+            return
+        #generate 2 new values
+        for sig in self._signals:
+            if sig.direction == "input":
+                sig.value = generate_mock_value(sig)
+    

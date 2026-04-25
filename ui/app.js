@@ -26,8 +26,10 @@ const state = {
         history: {}, // channelId -> { data: [{t, v}], color, style, enabled }
         plotter: null
     },
-    testSteps: [ { cmd: 'WRITE', channel: '', value: '', assert: false } ],
-    logFilters: { system: true, devices: {} }
+    testSteps: [{ cmd: 'WRITE', channel: '', value: '', assert: false }],
+    logFilters: { system: true, devices: {}, showDebug: false },
+    isBackendAlive: true,
+    heartbeatTimer: null
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupWaveformViewer();
     setupPolling();
     setupSSE();
+    setupHeartbeat();
     refreshAllData();
 });
 
@@ -119,15 +122,19 @@ function syncStatus(isConnected) {
     if (isConnected) {
         if (btnConnect) btnConnect.classList.add('hidden');
         if (btnDisconnect) btnDisconnect.classList.remove('hidden');
+        document.getElementById('dashboard-grid')?.classList.remove('system-offline');
         startPolling();
     } else {
         if (btnConnect) btnConnect.classList.remove('hidden');
         if (btnDisconnect) btnDisconnect.classList.add('hidden');
+        document.getElementById('dashboard-grid')?.classList.add('system-offline');
         stopPolling();
     }
 
-    // Refresh devices list to reflect new online/offline state
-    if (state.currentView === 'devices') {
+    // Refresh UI based on state
+    if (state.currentView === 'dashboard') {
+        renderDashboard();
+    } else if (state.currentView === 'devices') {
         refreshDevices();
         if (state.activeDeviceId) updateDeviceSignalsList(state.activeDeviceId);
     }
@@ -145,6 +152,39 @@ function setupPolling() {
     if (intervalSelect) intervalSelect.onchange = () => { if (state.status === 'online') startPolling(); };
     const deviceRateSelect = document.getElementById('device-poll-rate');
     if (deviceRateSelect) deviceRateSelect.onchange = () => { if (state.activeDeviceId) startDevicePolling(state.activeDeviceId); };
+}
+
+function setupHeartbeat() {
+    if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
+    state.heartbeatTimer = setInterval(checkBackendHealth, 10000);
+}
+
+async function checkBackendHealth() {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const response = await fetch('/system', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            if (!state.isBackendAlive) {
+                state.isBackendAlive = true;
+                document.getElementById('backend-lost-banner').classList.add('hidden');
+                addLog('Backend connection restored', 'success');
+            }
+        } else {
+            throw new Error('Response not OK');
+        }
+    } catch (e) {
+        if (state.isBackendAlive) {
+            state.isBackendAlive = false;
+            document.getElementById('backend-lost-banner').classList.remove('hidden');
+            addLog('Backend connection lost', 'error');
+            // stop all polling
+            stopPolling();
+            stopDevicePolling();
+        }
+    }
 }
 
 function startPolling() {
@@ -181,8 +221,20 @@ function renderDashboard() {
     const grid = document.getElementById('dashboard-grid');
     if (!grid) return;
     grid.innerHTML = '';
+
+    if (state.status !== 'online') {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-row: 1; grid-column: 1 / -1; height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.2); border-radius: 12px; border: 2px dashed var(--border-color);">
+                <i data-lucide="shield-off" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 15px;"></i>
+                <h2 style="color: var(--text-main); margin-bottom: 8px;">System Disconnected</h2>
+                <p style="color: var(--text-muted);">Please click the <strong>Connect</strong> button in the toolbar to start hardware monitoring.</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
     if (state.uiConfig.widgets.length === 0) {
-        grid.innerHTML = '<div class="empty-state"><p>No widgets. Add some in Widget Mapper.</p></div>';
+        grid.innerHTML = '<div class="empty-state"><p>No widgets configured. Add some in Widget Mapper.</p></div>';
         return;
     }
     state.uiConfig.widgets.forEach(widget => {
@@ -200,6 +252,15 @@ function createWidgetCard(widget) {
     else if (widget.type === 'bar') content += `<div class="widget-content bar-container"><div class="bar-bg"><div class="bar-fill" id="fill-${widget.id}" style="width: 0%"></div></div><div class="widget-value-sm" id="val-${widget.id}">--</div></div>`;
     else if (widget.type === 'waveform') content += `<div class="widget-content waveform-container"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline id="poly-${widget.id}" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" points="0,20 100,20" /></svg><div class="widget-value-sm"><span id="val-${widget.id}">--</span></div></div>`;
     else if (widget.type === 'led') content += `<div class="widget-content led-container"><div class="led-bulb" id="led-${widget.id}"></div><div class="widget-value-sm" id="val-${widget.id}">OFF</div></div>`;
+    else if (widget.type === 'toggle') {
+        content += `<div class="widget-content toggle-container" style="justify-content: center; align-items: center; display: flex; gap: 15px;">
+            <label class="switch">
+                <input type="checkbox" id="toggle-${widget.id}" onchange="widgetWrite('${widget.channel}', this.checked ? 1 : 0)">
+                <span class="slider"></span>
+            </label>
+            <div class="widget-value-sm" id="val-${widget.id}">OFF</div>
+        </div>`;
+    }
     else if (widget.type === 'button') content += `<div class="widget-content button-container"><button class="btn btn-primary btn-block" onmousedown="this.innerText='Pressed'; widgetWrite('${widget.channel}', 1)" onmouseup="this.innerText='Released'; widgetWrite('${widget.channel}', 0)" onmouseleave="this.innerText='Released'; widgetWrite('${widget.channel}', 0)" ontouchstart="event.preventDefault(); this.innerText='Pressed'; widgetWrite('${widget.channel}', 1)" ontouchend="this.innerText='Released'; widgetWrite('${widget.channel}', 0)">Released</button></div>`;
     else if (widget.type === 'slider') {
         const ch = state.channels.find(c => c.channel_id === widget.channel);
@@ -218,6 +279,11 @@ function updateWidgetValue(widget, val) {
         const bulb = document.getElementById(`led-${widget.id}`);
         const isActive = val > 0.5;
         if (bulb) bulb.classList.toggle('active', isActive);
+        valEl.innerText = isActive ? 'ON' : 'OFF';
+    } else if (widget.type === 'toggle') {
+        const toggle = document.getElementById(`toggle-${widget.id}`);
+        const isActive = val > 0.5;
+        if (toggle) toggle.checked = isActive;
         valEl.innerText = isActive ? 'ON' : 'OFF';
     } else if (widget.type === 'gauge' || widget.type === 'numeric' || widget.type === 'slider') {
         valEl.innerText = Number(val).toFixed(2);
@@ -263,11 +329,11 @@ async function refreshAllData() {
     console.log('[SDTB] refreshAllData: complete');
 }
 
-async function refreshChannels() { 
-    try { 
-        state.channels = await apiGet('/channel'); 
+async function refreshChannels() {
+    try {
+        state.channels = await apiGet('/channel');
         if (state.currentView === 'test-editor') renderTestTable();
-    } catch (e) { addLog('Channels fail', 'error'); } 
+    } catch (e) { addLog('Channels fail', 'error'); }
 }
 async function refreshUIConfig() { try { state.uiConfig = await apiGet('/ui/config'); } catch (e) { addLog('UI fail', 'error'); } }
 
@@ -395,7 +461,7 @@ async function loadSettings() {
 function setupTestEditor() {
     const btnRun = document.getElementById('btn-run-test');
     const btnAdd = document.getElementById('btn-add-test-step');
-    
+
     if (btnAdd) btnAdd.onclick = () => {
         state.testSteps.push({ cmd: 'WRITE', channel: '', value: '', assert: false });
         renderTestTable();
@@ -405,7 +471,7 @@ function setupTestEditor() {
         const log = document.getElementById('test-log');
         if (log) log.innerHTML = '';
         addLog('Starting Test Sequence...', 'info');
-        
+
         for (let i = 0; i < state.testSteps.length; i++) {
             const step = state.testSteps[i];
             const stepNum = i + 1;
@@ -443,14 +509,14 @@ function renderTestTable() {
     state.testSteps.forEach((step, index) => {
         const row = document.createElement('tr');
         const cmdHtml = `<select class="table-input" onchange="state.testSteps[${index}].cmd = this.value; renderTestTable();"><option value="WRITE" ${step.cmd === 'WRITE' ? 'selected' : ''}>WRITE</option><option value="READ" ${step.cmd === 'READ' ? 'selected' : ''}>READ</option></select>`;
-        
+
         // Populate channels from state.channels
         let channelOptions = '<option value="">Select...</option>';
         state.channels.forEach(ch => {
             channelOptions += `<option value="${ch.channel_id}" ${step.channel === ch.channel_id ? 'selected' : ''}>${ch.channel_id}</option>`;
         });
         const chanHtml = `<select class="table-input" onchange="state.testSteps[${index}].channel = this.value">${channelOptions}</select>`;
-        
+
         const valHtml = `<input type="number" class="table-input" value="${step.value}" onchange="state.testSteps[${index}].value = this.value" placeholder="Value">`;
         const assertHtml = step.cmd === 'READ' ? `<input type="checkbox" ${step.assert ? 'checked' : ''} onchange="state.testSteps[${index}].assert = this.checked">` : `<input type="checkbox" disabled>`;
         const actionsHtml = `<button class="btn-icon" onclick="removeTestStep(${index})"><i data-lucide="trash-2" style="color: #ef4444"></i></button>`;
@@ -491,11 +557,28 @@ function subscribeToChannel(id) {
     };
 }
 
+function subscribeToDeviceSignal(devId, sigId) {
+    const id = `dev:${devId}:${sigId}`;
+    if (state.sse.channels[id]) return;
+    const s = new EventSource(`/device/${devId}/signal/${sigId}/stream`);
+    state.sse.channels[id] = s;
+    s.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        const val = Number(data.value);
+        if (state.waveform.history[id] && state.waveform.history[id].enabled && !state.waveform.paused) {
+            state.waveform.history[id].data.push({ t: Date.now(), v: val });
+            if (state.waveform.history[id].data.length > 1000) state.waveform.history[id].data.shift();
+        }
+        const waveValEl = document.getElementById(`wave-val-${id}`);
+        if (waveValEl) waveValEl.innerText = val.toFixed(2);
+    };
+}
+
 async function refreshDevices() {
     try {
         state.devices = await apiGet('/device');
         const list = document.getElementById('device-explorer-list');
-        
+
         state.devices.forEach(dev => {
             if (state.logFilters.devices[dev.id] === undefined) {
                 state.logFilters.devices[dev.id] = false;
@@ -508,8 +591,32 @@ async function refreshDevices() {
         state.devices.forEach(dev => {
             const item = document.createElement('div');
             item.className = 'device-item';
-            const isOnline = dev.status === 'online' || dev.status === 'connected';
-            item.innerHTML = `<div class="flex-row" style="justify-content: space-between"><strong>${dev.id}</strong><span class="status-badge ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span></div><div style="font-size: 0.8rem; color: #94a3b8; margin-top: 5px">${dev.vendor} ${dev.model}</div>`;
+
+            let statusText = '';
+            let statusClass = '';
+
+            if (!dev.enabled) {
+                statusText = 'Disabled';
+                statusClass = 'disabled';
+            } else {
+                const isOnline = dev.status === 'online' || dev.status === 'connected';
+                statusText = isOnline ? 'Online' : 'Offline';
+                statusClass = isOnline ? 'online' : 'offline';
+            }
+
+            item.innerHTML = `
+                <div class="flex-row" style="justify-content: space-between">
+                    <strong>${dev.id}</strong>
+                    <div class="flex-row" style="gap: 10px">
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                        <label class="switch-sm" title="${dev.enabled ? 'Disable' : 'Enable'} Device">
+                            <input type="checkbox" ${dev.enabled ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked); event.stopPropagation();">
+                            <span class="slider-sm"></span>
+                        </label>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 5px">${dev.vendor} ${dev.model}</div>
+            `;
             item.onclick = () => showDeviceSignals(dev.id);
             list.appendChild(item);
         });
@@ -522,6 +629,22 @@ async function showDeviceSignals(id) {
     det.innerHTML = '<div class="loading">Loading signals...</div>';
     startDevicePolling(id);
 }
+
+window.toggleDevice = async (id, enabled) => {
+    try {
+        await apiPost(`/device/${id}/toggle?enabled=${enabled}`);
+        addLog(`Device ${id} ${enabled ? 'enabled' : 'disabled'}`, 'info');
+        refreshDevices();
+    } catch (e) {
+        addLog(`Toggle fail: ${e.message}`, 'error');
+        refreshDevices();
+    }
+};
+
+window.closeModal = (id) => {
+    const m = document.getElementById(id);
+    if (m) m.classList.remove('active');
+};
 
 async function updateDeviceSignalsList(id) {
     const det = document.getElementById('device-explorer-detail');
@@ -540,6 +663,116 @@ let waveformChart = null;
 let uplotSeriesIds = [];
 const uplotGlobal = { x: [], y: {} };
 
+window.openPlotModal = async () => {
+    // Fill channels
+    const chSelect = document.getElementById('plot-channel');
+    if (chSelect) {
+        chSelect.innerHTML = state.channels.map(c => `<option value="${c.channel_id}">${c.channel_id} (${c.properties.unit})</option>`).join('');
+    }
+
+    // Fill devices
+    const devSelect = document.getElementById('plot-device');
+    if (devSelect) {
+        devSelect.innerHTML = state.devices.map(d => `<option value="${d.id}">${d.id}</option>`).join('');
+    }
+
+    updatePlotSignalOptions();
+    document.getElementById('modal-plot').classList.add('active');
+};
+
+window.updatePlotSignalOptions = () => {
+    const type = document.getElementById('plot-type').value;
+    document.getElementById('plot-channel-group').classList.toggle('hidden', type !== 'channel');
+    document.getElementById('plot-device-group').classList.toggle('hidden', type !== 'device');
+    document.getElementById('plot-signal-group').classList.toggle('hidden', type !== 'device');
+    if (type === 'device') updatePlotDeviceSignals();
+};
+
+window.updatePlotDeviceSignals = async () => {
+    const devId = document.getElementById('plot-device').value;
+    const sigSelect = document.getElementById('plot-signal');
+    if (!devId || !sigSelect) return;
+    try {
+        const sigs = await apiGet(`/device/${devId}/signal`);
+        sigSelect.innerHTML = sigs.map(s => `<option value="${s.signal_id}">${s.signal_id} (${s.name})</option>`).join('');
+    } catch (e) { console.error(e); }
+};
+
+window.addPlot = () => {
+    const type = document.getElementById('plot-type').value;
+    let id, label;
+    if (type === 'channel') {
+        id = document.getElementById('plot-channel').value;
+        label = id;
+    } else {
+        const devId = document.getElementById('plot-device').value;
+        const sigId = document.getElementById('plot-signal').value;
+        id = `dev:${devId}:${sigId}`;
+        label = `${devId}.${sigId}`;
+    }
+
+    if (state.waveform.history[id]) {
+        alert('Signal already being plotted');
+        return;
+    }
+
+    state.waveform.history[id] = {
+        label: label,
+        data: [],
+        color: document.getElementById('plot-color').value,
+        style: document.getElementById('plot-style').value,
+        enabled: true,
+        type: type
+    };
+
+    if (type === 'channel') {
+        subscribeToChannel(id);
+    } else {
+        const parts = id.split(':');
+        subscribeToDeviceSignal(parts[1], parts[2]);
+    }
+
+    closeModal('modal-plot');
+    renderWaveformChannelsList();
+    rebuildWaveformChart();
+};
+
+window.removePlot = (id) => {
+    if (state.sse.channels[id]) {
+        state.sse.channels[id].close();
+        delete state.sse.channels[id];
+    }
+    delete state.waveform.history[id];
+    delete uplotGlobal.y[id];
+    renderWaveformChannelsList();
+    rebuildWaveformChart();
+};
+
+function renderWaveformChannelsList() {
+    const list = document.getElementById('waveform-channels-list');
+    if (!list) return;
+    list.innerHTML = '';
+    Object.keys(state.waveform.history).forEach(id => {
+        const plot = state.waveform.history[id];
+        const item = document.createElement('div');
+        item.className = 'channel-item';
+        item.style.cssText = `background: rgba(0,0,0,0.2); border-radius: 8px; border-left: 4px solid ${plot.color}; border-right: 1px solid var(--border-color); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);`;
+        item.innerHTML = `
+            <div class="flex-row" style="justify-content: space-between; padding: 8px 12px;">
+                <div class="flex-row" style="gap: 10px;">
+                    <span style="font-weight: 500">${plot.label}</span>
+                    <span id="wave-val-${id}" style="font-family: monospace; color: var(--accent-primary)">--</span>
+                </div>
+                <button class="btn-icon" onclick="removePlot('${id}')">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px; color: var(--accent-danger)"></i>
+                </button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+    lucide.createIcons();
+}
+
 function rebuildWaveformChart() {
     const c = document.getElementById('waveform-chart-container');
     if (!c) return;
@@ -549,14 +782,14 @@ function rebuildWaveformChart() {
     uplotSeriesIds = Object.keys(state.waveform.history).filter(id => state.waveform.history[id].enabled);
     if (uplotSeriesIds.length === 0) return;
 
-    const series = [ { label: "Time", value: (u, v) => v ? new Date(v * 1000).toLocaleTimeString() : "--" } ];
+    const series = [{ label: "Time", value: (u, v) => v ? new Date(v * 1000).toLocaleTimeString() : "--" }];
     uplotSeriesIds.forEach(id => {
         const chan = state.waveform.history[id];
         series.push({
             label: id,
             stroke: chan.color,
             width: 2,
-            paths: uPlot.paths.stepped({align: 1}),
+            paths: uPlot.paths.stepped({ align: 1 }),
             dash: chan.style === 'dashed' ? [10, 5] : chan.style === 'dotted' ? [2, 2] : []
         });
     });
@@ -575,7 +808,7 @@ function rebuildWaveformChart() {
         cursor: { drag: { x: true, y: true, uni: 50 } }
     };
 
-    const data = [ uplotGlobal.x ];
+    const data = [uplotGlobal.x];
     uplotSeriesIds.forEach(id => {
         data.push(uplotGlobal.y[id] || new Array(uplotGlobal.x.length).fill(null));
     });
@@ -607,28 +840,28 @@ function setupWaveformViewer() {
         if (!state.waveform.paused && uplotSeriesIds.length > 0) {
             const now = Date.now() / 1000;
             uplotGlobal.x.push(now);
-            
+
             Object.keys(state.waveform.history).forEach(id => {
                 if (!uplotGlobal.y[id]) uplotGlobal.y[id] = new Array(uplotGlobal.x.length - 1).fill(null);
                 const chan = state.waveform.history[id];
                 const latest = chan.data.length > 0 ? chan.data[chan.data.length - 1].v : null;
                 uplotGlobal.y[id].push(latest);
             });
-            
+
             if (uplotGlobal.x.length > 1000) {
                 uplotGlobal.x.shift();
                 Object.values(uplotGlobal.y).forEach(arr => arr.shift());
             }
 
             if (waveformChart) {
-                const data = [ uplotGlobal.x ];
+                const data = [uplotGlobal.x];
                 uplotSeriesIds.forEach(id => data.push(uplotGlobal.y[id]));
                 waveformChart.setData(data);
             }
         }
         requestAnimationFrame(updateWaveformFrame);
     }
-    
+
     // Only start the loop once
     if (!window._waveformLoopStarted) {
         window._waveformLoopStarted = true;
@@ -638,39 +871,8 @@ function setupWaveformViewer() {
 }
 
 function initWaveformViewer() {
-    refreshChannels().then(() => {
-        const list = document.getElementById('waveform-channels-list');
-        if (!list) return;
-        list.innerHTML = '';
-        state.channels.forEach(ch => {
-            const color = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-            const item = document.createElement('div');
-            item.className = 'waveform-channel-item';
-            item.style.cssText = 'display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.2);';
-            item.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" onchange="toggleWaveformChannel('${ch.channel_id}', this.checked)">
-                        <strong>${ch.channel_id}</strong>
-                    </label>
-                    <span id="wave-val-${ch.channel_id}" style="font-family: monospace; font-size: 0.9rem; color: ${color};">--</span>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <input type="color" value="${color}" style="width: 28px; height: 28px; padding: 0; border: none; border-radius: 4px; flex-shrink: 0; cursor: pointer;" onchange="setWaveformColor('${ch.channel_id}', this.value)">
-                    <select class="table-input" style="flex: 1; padding: 4px; height: 28px; font-size: 0.8rem;" onchange="setWaveformStyle('${ch.channel_id}', this.value)">
-                        <option value="solid">Solid</option>
-                        <option value="dashed">Dashed</option>
-                        <option value="dotted">Dotted</option>
-                    </select>
-                </div>
-            `;
-            list.appendChild(item);
-            if (!state.waveform.history[ch.channel_id]) {
-                state.waveform.history[ch.channel_id] = { data: [], color: color, style: 'solid', enabled: false };
-            }
-        });
-        rebuildWaveformChart();
-    });
+    renderWaveformChannelsList();
+    rebuildWaveformChart();
 }
 
 window.toggleWaveformChannel = (id, e) => { if (state.waveform.history[id]) { state.waveform.history[id].enabled = e; if (e) subscribeToChannel(id); rebuildWaveformChart(); } };
@@ -679,31 +881,47 @@ window.setWaveformStyle = (id, s) => { if (state.waveform.history[id]) { state.w
 
 function addLog(m, t = 'info') {
     const d = document.getElementById('debug-window'), tl = document.getElementById('test-log'); if (!d) return;
-    const e = document.createElement('div'); e.className = `log-entry ${t}`; 
-    e.innerHTML = `<span style="color: #4b5563">[${new Date().toLocaleTimeString()}]</span> ${m}`;
+
+    let displayMsg = m;
+    let logLevel = 'INFO';
+
+    // Parse level if present: "LEVEL | Module: Message"
+    if (m.includes(' | ')) {
+        const parts = m.split(' | ');
+        logLevel = parts[0];
+        displayMsg = parts.slice(1).join(' | ');
+    }
+
+    const e = document.createElement('div');
+    e.className = `log-entry ${t} level-${logLevel.toLowerCase()}`;
+    e.innerHTML = `<span style="color: #4b5563">[${new Date().toLocaleTimeString()}]</span> ${displayMsg}`;
+    e.setAttribute('data-level', logLevel);
 
     let source = 'system';
-    if (m.includes('devices.')) source = 'device_unknown';
-    
+    if (m.includes('device_')) source = 'device_unknown';
+
     state.devices.forEach(dev => {
-        if (m.includes(dev.id) || m.includes(dev.plugin) || (dev.vendor && m.toLowerCase().includes(dev.vendor.toLowerCase()))) {
+        if (m.includes(dev.id) || (dev.plugin && m.includes(dev.plugin)) || (dev.vendor && m.toLowerCase().includes(dev.vendor.toLowerCase()))) {
             source = dev.id;
         }
     });
     if (source === 'device_unknown' && state.devices.length === 1) source = state.devices[0].id;
-    
+
     e.setAttribute('data-source', source);
-    
+
     let isVisible = true;
     if (source === 'system' && !state.logFilters.system) isVisible = false;
     if (source !== 'system') {
         const devChecked = source === 'device_unknown' ? Object.values(state.logFilters.devices).some(v => v) : state.logFilters.devices[source];
         if (!devChecked) isVisible = false;
     }
-    
+
+    // Debug level filter
+    if (logLevel === 'DEBUG' && !state.logFilters.showDebug) isVisible = false;
+
     if (!isVisible) e.style.display = 'none';
 
-    d.appendChild(e.cloneNode(true)); 
+    d.appendChild(e.cloneNode(true));
     if (tl && (m.startsWith('Step') || t === 'success' || t === 'error')) { tl.appendChild(e); tl.scrollTop = tl.scrollHeight; }
     const as = document.getElementById('chk-autoscroll'); if (as && as.checked) d.scrollTop = d.scrollHeight;
 }
@@ -722,6 +940,10 @@ window.updateLogFiltersUI = () => {
 window.updateLogFilters = () => {
     const sysFilter = document.getElementById('filter-system');
     if (sysFilter) state.logFilters.system = sysFilter.checked;
+
+    const debugFilter = document.getElementById('filter-debug');
+    if (debugFilter) state.logFilters.showDebug = debugFilter.checked;
+
     updateLogVisibility();
 };
 
@@ -736,14 +958,36 @@ window.updateLogVisibility = () => {
             const devChecked = source === 'device_unknown' ? Object.values(state.logFilters.devices).some(v => v) : state.logFilters.devices[source];
             if (!devChecked) isVisible = false;
         }
+
+        // Debug level filter
+        const level = log.getAttribute('data-level');
+        if (level === 'DEBUG' && !state.logFilters.showDebug) isVisible = false;
+
         log.style.display = isVisible ? 'block' : 'none';
     });
     const d = document.getElementById('debug-window');
-    const as = document.getElementById('chk-autoscroll'); 
+    const as = document.getElementById('chk-autoscroll');
     if (as && as.checked && d) d.scrollTop = d.scrollHeight;
 };
 
-async function apiGet(p) { const r = await fetch(p); if (!r.ok) throw new Error(await r.text()); return r.json(); }
-async function apiPut(p, b) { const r = await fetch(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); if (!r.ok) throw new Error(await r.text()); return r.json(); }
-async function apiPost(p, b = null, ct = 'application/json') { const o = { method: 'POST' }; if (b) { o.body = b; o.headers = { 'Content-Type': ct }; } const r = await fetch(p, o); if (!r.ok) throw new Error(await r.text()); return r.json(); }
+async function apiGet(p) {
+    if (!state.isBackendAlive && p !== '/system') return { error: 'Backend offline' };
+    const r = await fetch(p);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+}
+async function apiPut(p, b) {
+    if (!state.isBackendAlive) return { error: 'Backend offline' };
+    const r = await fetch(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+}
+async function apiPost(p, b = null, ct = 'application/json') {
+    if (!state.isBackendAlive) return { error: 'Backend offline' };
+    const o = { method: 'POST' };
+    if (b) { o.body = b; o.headers = { 'Content-Type': ct }; }
+    const r = await fetch(p, o);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+}
 async function readSingleChannel(id) { try { const d = await apiGet(`/channel/${id}`); const i = document.getElementById(`read-${id}`); if (i) i.value = Number(d.value).toFixed(2); } catch (e) { addLog(`Read fail: ${e.message}`, 'error'); } }

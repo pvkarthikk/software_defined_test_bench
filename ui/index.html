@@ -9,6 +9,13 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <div id="backend-lost-banner" class="backend-lost-banner hidden">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <i data-lucide="alert-triangle"></i>
+            <span><strong>Backend Lost:</strong> The SDTB server is not responding. All background operations are paused.</span>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="location.reload()" style="color: white; border-color: white; padding: 2px 10px;">Retry Now</button>
+    </div>
     <div class="app-container">
         <!-- TOP TOOLBAR -->
         <header class="toolbar">
@@ -82,8 +89,11 @@
                     </div>
                     <div class="explorer-container">
                         <div class="explorer-master" style="display: flex; flex-direction: column; gap: 15px; overflow-y: auto;">
-                            <div class="detail-header">
-                                <h3>Channels</h3>
+                            <div class="detail-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>Active Plots</h3>
+                                <button id="btn-add-plot" class="btn btn-outline btn-sm" onclick="openPlotModal()">
+                                    <i data-lucide="plus"></i> Add
+                                </button>
                             </div>
                             <div id="waveform-channels-list" style="display: flex; flex-direction: column; gap: 10px;">
                                 <!-- Populated dynamically -->
@@ -102,10 +112,10 @@
                             <div class="input-group">
                                 <label for="poll-interval">Rate:</label>
                                 <select id="poll-interval" class="btn btn-outline btn-sm">
-                                    <option value="250">250ms</option>
+                                    <option value="100">100ms</option>
+                                    <option value="250" selected>250ms</option>
                                     <option value="500">500ms</option>
-                                    <option value="1000" selected>1s</option>
-                                    <option value="2000">2s</option>
+                                    <option value="1000">1s</option>
                                 </select>
                             </div>
                             <!-- Add Widget button moved to Widget Mapper -->
@@ -123,10 +133,10 @@
                             <div class="input-group">
                                 <label>Poll Rate:</label>
                                 <select id="device-poll-rate" class="btn btn-outline btn-sm">
+                                    <option value="100">100ms</option>
+                                    <option value="250" selected>250ms</option>
                                     <option value="500">500ms</option>
-                                    <option value="1000" selected>1s</option>
-                                    <option value="2000">2s</option>
-                                    <option value="5000">5s</option>
+                                    <option value="1000">1s</option>
                                 </select>
                             </div>
                         </div>
@@ -241,6 +251,9 @@
                                 <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
                                     <input type="checkbox" id="filter-system" checked onchange="updateLogFilters()"> System
                                 </label>
+                                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--accent-primary);">
+                                    <input type="checkbox" id="filter-debug" onchange="updateLogFilters()"> Debug
+                                </label>
                                 <div id="device-log-filters" style="display: flex; gap: 10px; border-left: 1px solid var(--border-color); padding-left: 10px;">
                                     <!-- Device filters injected here -->
                                 </div>
@@ -300,9 +313,10 @@
                     <option value="gauge">Gauge</option>
                     <option value="bar">Bar Graph</option>
                     <option value="waveform">Waveform</option>
-                    <option value="led">LED Indicator</option>
-                    <option value="button">Button</option>
-                    <option value="slider">Slider</option>
+                    <option value="led">Status LED</option>
+                    <option value="toggle">Toggle Switch</option>
+                    <option value="button">Momentary Button</option>
+                    <option value="slider">Range Slider</option>
                 </select>
             </div>
             <div class="flex-row" style="gap: 10px; margin-top: 20px; justify-content: flex-end;">
@@ -357,5 +371,48 @@
 
     <script src="https://unpkg.com/uplot/dist/uPlot.iife.min.js"></script>
     <script src="app.js?v=7"></script>
+    <!-- PLOT MODAL -->
+    <div id="modal-plot" class="modal">
+        <div class="modal-content card">
+            <h2>Add Signal to Plot</h2>
+            <div class="form-group">
+                <label>Signal Type</label>
+                <select id="plot-type" class="table-input" onchange="updatePlotSignalOptions()">
+                    <option value="channel">Channel</option>
+                    <option value="device">Device Signal</option>
+                </select>
+            </div>
+            <div class="form-group" id="plot-channel-group">
+                <label>Channel</label>
+                <select id="plot-channel" class="table-input"></select>
+            </div>
+            <div class="form-group hidden" id="plot-device-group">
+                <label>Device</label>
+                <select id="plot-device" class="table-input" onchange="updatePlotDeviceSignals()"></select>
+            </div>
+            <div class="form-group hidden" id="plot-signal-group">
+                <label>Signal</label>
+                <select id="plot-signal" class="table-input"></select>
+            </div>
+            <div class="flex-row" style="gap: 15px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Color</label>
+                    <input type="color" id="plot-color" class="table-input" value="#3b82f6" style="padding: 2px;">
+                </div>
+                <div class="form-group" style="flex: 2;">
+                    <label>Style</label>
+                    <select id="plot-style" class="table-input">
+                        <option value="solid">Solid Line</option>
+                        <option value="dashed">Dashed Line</option>
+                        <option value="dotted">Dotted Line</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeModal('modal-plot')">Cancel</button>
+                <button class="btn btn-primary" onclick="addPlot()">Add Signal</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

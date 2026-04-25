@@ -20,7 +20,9 @@ async def list_devices():
                 "vendor": dev.vendor,
                 "model": dev.model,
                 "firmware_version": dev.firmware_version,
-                "status": "connected" if dev.is_connected else "offline"
+                "status": "connected" if dev.is_connected else "offline",
+                "enabled": dev.enabled,
+                "plugin": dev.__class__.__module__
             })
         except Exception as e:
             result.append({
@@ -43,7 +45,8 @@ async def get_device_details(device_id: str):
         "vendor": device.vendor,
         "model": device.model,
         "firmware_version": device.firmware_version,
-        "status": "online" if device.is_connected else "offline"
+        "status": "online" if device.is_connected else "offline",
+        "enabled": device.enabled
     }
 
 @router.get("/{device_id}/signal")
@@ -59,3 +62,21 @@ async def list_device_signals(device_id: str):
         return device.get_signals()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving signals: {e}")
+
+@router.post("/{device_id}/toggle")
+async def toggle_device(device_id: str, enabled: bool):
+    try:
+        system.device_manager.toggle_device(device_id, enabled)
+        return {"message": f"Device {device_id} is now {'enabled' if enabled else 'disabled'}"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{device_id}/signal/{signal_id}/stream")
+async def stream_device_signal(device_id: str, signal_id: str):
+    """
+    Server-Sent Events (SSE) stream for a raw hardware signal.
+    """
+    from sse_starlette.sse import EventSourceResponse
+    return EventSourceResponse(system.stream_manager.subscribe_device_signal(device_id, signal_id))

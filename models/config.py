@@ -27,6 +27,7 @@ class SystemConfig(BaseModel):
 class DeviceConfig(BaseModel):
     id: str
     plugin: str
+    enabled: bool = True
     connection_params: Dict[str, Any]
     settings: Dict[str, Any] = {}
 

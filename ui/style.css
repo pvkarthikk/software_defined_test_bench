@@ -16,6 +16,27 @@
     --toolbar-height: 48px;
 }
 
+.backend-lost-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background-color: var(--accent-danger);
+    color: white;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.backend-lost-banner.hidden {
+    display: none;
+}
+
 /* LUCIDE ICON SIZING */
 svg[class~="lucide"],
 i[data-lucide] > svg {
@@ -128,6 +149,15 @@ body {
     display: flex;
     gap: 12px;
 }
+
+#btn-connect { background: var(--accent-success); border-color: var(--accent-success); }
+#btn-connect:hover { background: #059669; border-color: #059669; }
+
+#btn-disconnect { background: var(--accent-danger); border-color: var(--accent-danger); color: white; }
+#btn-disconnect:hover { background: #dc2626; border-color: #dc2626; }
+
+#btn-restart { color: #f59e0b; border-color: #f59e0b; }
+#btn-restart:hover { background: #f59e0b; color: white; }
 
 .main-layout {
     display: flex;
@@ -304,6 +334,17 @@ body {
 }
 
 /* DASHBOARD GRID */
+.dashboard-grid.system-offline {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.5);
+  cursor: not-allowed;
+}
+
+.dashboard-grid.system-offline .widget-card {
+  box-shadow: none;
+}
+
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -484,6 +525,7 @@ body {
 
 .status-badge.online { background: rgba(16, 185, 129, 0.1); color: var(--accent-success); }
 .status-badge.offline { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); }
+.status-badge.disabled { background: rgba(0, 0, 0, 0.2); color: #64748b; border: 1px solid rgba(255,255,255,0.05); }
 
 /* MODALS */
 .modal {
@@ -541,6 +583,7 @@ body {
 .log-entry.error { color: var(--accent-danger); }
 .log-entry.success { color: var(--accent-success); }
 .log-entry.info { color: var(--text-muted); }
+.log-entry.level-debug { color: #64748b; font-style: italic; font-size: 0.8rem; }
 
 /* TEST EDITOR */
 .test-editor-container {
@@ -627,3 +670,107 @@ body {
 /* UTILS */
 .flex-row { display: flex; align-items: center; }
 .badge { padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); font-size: 0.8rem; }
+
+/* SMALL TOGGLE SWITCH */
+.switch-sm {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+
+.switch-sm input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider-sm {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #1f2937;
+  transition: .4s;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+}
+
+.slider-sm:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider-sm {
+  background-color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+input:focus + .slider-sm {
+  box-shadow: 0 0 1px var(--accent-primary);
+}
+
+input:checked + .slider-sm:before {
+  transform: translateX(14px);
+}
+
+/* STANDARD TOGGLE SWITCH */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #1f2937;
+  transition: .4s;
+  border-radius: 34px;
+  border: 1px solid var(--border-color);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px var(--accent-primary);
+}
+
+input:checked + .slider:before {
+  transform: translateX(24px);
+}
