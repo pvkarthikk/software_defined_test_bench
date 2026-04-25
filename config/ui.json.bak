@@ -27,7 +27,7 @@
     },
     {
       "id": "w1777141146791",
-      "type": "numeric",
+      "type": "led",
       "channel": "Check_Engine_Light",
       "label": "asdf123",
       "position": {

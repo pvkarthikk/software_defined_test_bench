@@ -28,11 +28,13 @@ const state = {
     testSteps: [{ cmd: 'WRITE', channel: '', value: '', assert: false }],
     logFilters: { system: true, devices: {}, showDebug: false },
     isBackendAlive: true,
-    heartbeatTimer: null
+    heartbeatTimer: null,
+    layout: null
 };
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
+    initLayout(); // Initialize GoldenLayout first
     setupNavigation();
     setupSystemControls();
     setupTestEditor();
@@ -40,11 +42,93 @@ document.addEventListener('DOMContentLoaded', () => {
     setupWidgetMapper();
     setupChannelMapper();
     setupWaveformViewer();
+    setupTheme(); // Initialize theme toggle
     setupPolling();
     setupSSE();
     setupHeartbeat();
     refreshAllData();
 });
+
+const viewTitles = {
+    'dashboard': 'Dashboard',
+    'devices': 'Device Explorer',
+    'channel-mapper': 'Channel Mapper',
+    'widget-mapper': 'Widget Mapper',
+    'waveform': 'Waveform Viewer',
+    'test-editor': 'Test Editor',
+    'debug': 'System Logs',
+    'settings': 'Settings'
+};
+
+function initLayout() {
+    const container = document.getElementById('layout-container');
+    if (!container) return;
+    
+    const config = {
+        settings: {
+            showPopoutIcon: false,
+            showMaximiseIcon: true,
+            showCloseIcon: true
+        },
+        content: [{
+            type: 'row',
+            content: [
+                {
+                    type: 'column',
+                    width: 75,
+                    content: [
+                        { type: 'component', componentName: 'dashboard', title: 'Dashboard' },
+                        { type: 'component', componentName: 'debug', title: 'System Logs', height: 30 }
+                    ]
+                },
+                {
+                    type: 'component',
+                    componentName: 'devices',
+                    title: 'Devices',
+                    width: 25
+                }
+            ]
+        }]
+    };
+
+    state.layout = new GoldenLayout(config, $(container));
+
+    Object.keys(viewTitles).forEach(viewId => {
+        state.layout.registerComponent(viewId, function(container, componentState) {
+            const el = document.getElementById(`view-${viewId}`);
+            if (el) {
+                container.getElement().append($(el));
+                el.style.display = 'flex';
+                lucide.createIcons(el);
+            }
+            container.on('show', () => {
+                state.currentView = viewId;
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.toggle('active', item.getAttribute('data-view') === viewId);
+                });
+                refreshViewContent(viewId);
+            });
+            container.on('resize', () => {
+                if (viewId === 'waveform' && state.waveform.plotter) {
+                    state.waveform.plotter.setSize({width: container.width, height: container.height - 100});
+                }
+            });
+        });
+    });
+
+    state.layout.init();
+    $(window).resize(() => { if(state.layout) state.layout.updateSize(); });
+}
+
+function refreshViewContent(viewId) {
+    if (viewId === 'dashboard') renderDashboard();
+    if (viewId === 'widget-mapper') renderWidgetMapper();
+    if (viewId === 'channel-mapper') renderChannelMapper();
+    if (viewId === 'settings') loadSettings();
+    if (viewId === 'devices') refreshDevices();
+    if (viewId === 'waveform') initWaveformViewer();
+    if (viewId === 'test-editor') renderTestTable();
+}
 
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
@@ -56,22 +140,69 @@ function setupNavigation() {
     });
 }
 
+function setupTheme() {
+    const btn = document.getElementById('btn-theme-toggle');
+    const container = document.getElementById('theme-icon-container');
+    if (!btn || !container) return;
+    
+    // Load preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.documentElement.classList.add('light-theme');
+        container.innerHTML = '<i data-lucide="sun"></i>';
+        lucide.createIcons();
+    }
+
+    btn.onclick = () => {
+        const isLight = document.documentElement.classList.toggle('light-theme');
+        localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        container.innerHTML = `<i data-lucide="${isLight ? 'sun' : 'moon'}"></i>`;
+        lucide.createIcons();
+        
+        // Notify layout engine to resize if needed
+        if (state.layout) state.layout.updateSize();
+        
+        addLog(`Switched to ${isLight ? 'Day' : 'Night'} mode`, 'info');
+    };
+}
+
 function switchView(viewId) {
+    if (!state.layout || !state.layout.isInitialised) return;
+
     state.currentView = viewId;
+    
+    // Update sidebar active state
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.getAttribute('data-view') === viewId);
     });
-    document.querySelectorAll('.view').forEach(view => {
-        view.classList.toggle('active', view.id === `view-${viewId}`);
-    });
-    if (viewId !== 'devices') state.activeDeviceId = null;
-    if (viewId === 'dashboard') renderDashboard();
-    if (viewId === 'widget-mapper') renderWidgetMapper();
-    if (viewId === 'channel-mapper') renderChannelMapper();
-    if (viewId === 'settings') loadSettings();
-    if (viewId === 'devices') refreshDevices();
-    if (viewId === 'waveform') initWaveformViewer();
-    if (viewId === 'test-editor') renderTestTable();
+    
+    // Search for existing component in v1.5.9
+    const items = state.layout.root.getItemsByFilter(item => item.config.componentName === viewId);
+    if (items.length > 0) {
+        // Focus the existing tab
+        const item = items[0];
+        if (item.parent && item.parent.isStack) {
+            item.parent.setActiveContentItem(item);
+        }
+    } else {
+        // Add to the first stack found
+        const stacks = state.layout.root.getItemsByType('stack');
+        if (stacks.length > 0) {
+            stacks[0].addChild({
+                type: 'component',
+                componentName: viewId,
+                title: viewTitles[viewId] || viewId
+            });
+        } else {
+            state.layout.root.addChild({
+                type: 'component',
+                componentName: viewId,
+                title: viewTitles[viewId] || viewId
+            });
+        }
+    }
+    
+    refreshViewContent(viewId);
 }
 
 function setupSystemControls() {
@@ -233,13 +364,13 @@ function createWidgetCard(widget) {
     const card = document.createElement('div');
     card.className = 'widget-card';
     card.id = `widget-${widget.id}`;
-    let content = `<div class="widget-header"><span class="widget-label">${widget.label}</span><span class="widget-channel">${widget.channel}</span><div class="widget-actions"><button class="btn-icon" onclick="editWidgetById('${widget.id}')"><i data-lucide="edit-2"></i></button></div></div>`;
+    let content = `<div class="widget-header"><span class="widget-label">${widget.label}</span><div class="widget-actions"><button class="btn-icon" onclick="editWidgetById('${widget.id}')"><i data-lucide="edit-2"></i></button></div></div>`;
     if (widget.type === 'gauge') content += `<div class="widget-content gauge-container"><div class="gauge-value" id="val-${widget.id}">--</div><div class="gauge-label">${widget.type}</div></div>`;
     else if (widget.type === 'bar') content += `<div class="widget-content bar-container"><div class="bar-bg"><div class="bar-fill" id="fill-${widget.id}" style="width: 0%"></div></div><div class="widget-value-sm" id="val-${widget.id}">--</div></div>`;
     else if (widget.type === 'waveform') content += `<div class="widget-content waveform-container"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline id="poly-${widget.id}" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" points="0,20 100,20" /></svg><div class="widget-value-sm"><span id="val-${widget.id}">--</span></div></div>`;
     else if (widget.type === 'led') content += `<div class="widget-content led-container"><div class="led-bulb" id="led-${widget.id}"></div><div class="widget-value-sm" id="val-${widget.id}">OFF</div></div>`;
     else if (widget.type === 'toggle') {
-        content += `<div class="widget-content toggle-container" style="justify-content: center; align-items: center; display: flex; gap: 15px;">
+        content += `<div class="widget-content toggle-container">
             <label class="switch">
                 <input type="checkbox" id="toggle-${widget.id}" onchange="widgetWrite('${widget.channel}', this.checked ? 1 : 0)">
                 <span class="slider"></span>
