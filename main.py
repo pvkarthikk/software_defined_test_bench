@@ -37,6 +37,10 @@ app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 async def root():
     return {"message": "Welcome to SDTB API. Visit /docs for documentation."}
 
+@app.get("/ping")
+async def ping():
+    return {"message": "pong"}
+
 if __name__ == "__main__":
     import os
     # Ensure uvicorn uses the right module path if run directly

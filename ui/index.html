@@ -234,9 +234,17 @@
                 </div>
 
                 <div id="view-debug" class="view">
-                    <div class="view-header">
+                    <div class="view-header" style="flex-wrap: wrap; gap: 10px;">
                         <h1>Debug Window</h1>
-                        <div class="view-actions" style="display: flex; align-items: center; gap: 10px;">
+                        <div class="view-actions" style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <div id="log-filters" style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="filter-system" checked onchange="updateLogFilters()"> System
+                                </label>
+                                <div id="device-log-filters" style="display: flex; gap: 10px; border-left: 1px solid var(--border-color); padding-left: 10px;">
+                                    <!-- Device filters injected here -->
+                                </div>
+                            </div>
                             <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
                                 <input type="checkbox" id="chk-autoscroll" checked> AutoScroll
                             </label>

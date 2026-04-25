@@ -21,6 +21,7 @@ class SystemServerConfig(BaseModel):
 
 class SystemConfig(BaseModel):
     device_directory: str
+    device_update_rate: int = 100
     server: SystemServerConfig
 
 class DeviceConfig(BaseModel):

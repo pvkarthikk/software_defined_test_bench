@@ -48,8 +48,8 @@ class ChannelManager:
             raise ValueError(f"Channel '{channel_id}' not found")
 
         device = self.device_manager.get_device(cfg.device_id)
-        if not device:
-            raise RuntimeError(f"Device '{cfg.device_id}' for channel '{channel_id}' is not initialized or connected")
+        if not device or not device.is_connected:
+            raise RuntimeError(f"Device '{cfg.device_id}' for channel '{channel_id}' is not connected")
 
         # Read raw value from device plugin
         raw_value = device.read_signal(cfg.signal_id)
@@ -80,8 +80,8 @@ class ChannelManager:
             )
 
         device = self.device_manager.get_device(cfg.device_id)
-        if not device:
-            raise RuntimeError(f"Device '{cfg.device_id}' for channel '{channel_id}' is not initialized or connected")
+        if not device or not device.is_connected:
+            raise RuntimeError(f"Device '{cfg.device_id}' for channel '{channel_id}' is not connected")
 
         # 2. Scaling to Raw value
         # Handle potential division by zero if resolution is 0 (though it shouldn't be)

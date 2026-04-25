@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from typing import List, Optional
 from core.config_manager import ConfigManager
 from core.device_manager import DeviceManager
@@ -57,6 +58,7 @@ class SDTBSystem:
         # Connect test engine results to log stream
         self.test_engine.on_step_complete = self._handle_test_step_result
         
+        self.update_task: Optional[asyncio.Task] = None
         self.initialized = True
         logger.info("SDTB System Initialized")
 
@@ -86,12 +88,20 @@ class SDTBSystem:
                 logger.warning(f"Channels config file not found: {file_path}")
         except Exception as e:
             logger.error(f"Could not load channels during startup: {e}")
+            
+        # 3. Start background update loop
+        if not self.update_task or self.update_task.done():
+            self.update_task = asyncio.create_task(self._update_loop())
+            logger.info(f"Started device update loop (rate: {self.system_config.device_update_rate}ms)")
 
     def shutdown(self):
         """
-        Performs system shutdown: disconnects devices.
+        Performs system shutdown: disconnects devices and stops update loop.
         """
         logger.info("Shutting down SDTB System...")
+        if self.update_task:
+            self.update_task.cancel()
+            self.update_task = None
         self.device_manager.disconnect_all()
 
     def restart(self):
@@ -110,3 +120,25 @@ class SDTBSystem:
         """
         log_msg = f"Step {result.step_index} [{result.action}]: {result.status} - {result.message}"
         self.stream_manager.push_log(log_msg)
+
+    async def _update_loop(self):
+        """
+        Periodic task that calls update() on all connected devices.
+        """
+        while True:
+            try:
+                rate_sec = self.system_config.device_update_rate / 1000.0
+                await asyncio.sleep(rate_sec)
+                
+                devices = self.device_manager.get_all_devices()
+                for dev_id, device in devices.items():
+                    if device.is_connected:
+                        try:
+                            device.update()
+                        except Exception as e:
+                            logger.error(f"Error updating device {dev_id}: {e}")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error in update loop: {e}")
+                await asyncio.sleep(1.0) # Prevent tight loop on error

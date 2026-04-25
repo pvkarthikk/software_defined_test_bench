@@ -66,6 +66,10 @@ class BaseDevice(ABC):
         """Writes a value to the specified signal."""
         pass
 
+    def update(self) -> None:
+        """Called periodically by the system for background tasks."""
+        pass
+
 class BaseDeviceException(Exception):
     """Base exception class for device-related errors."""
     pass

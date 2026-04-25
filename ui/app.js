@@ -26,7 +26,8 @@ const state = {
         history: {}, // channelId -> { data: [{t, v}], color, style, enabled }
         plotter: null
     },
-    testSteps: [ { cmd: 'WRITE', channel: '', value: '', assert: false } ]
+    testSteps: [ { cmd: 'WRITE', channel: '', value: '', assert: false } ],
+    logFilters: { system: true, devices: {} }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -494,6 +495,14 @@ async function refreshDevices() {
     try {
         state.devices = await apiGet('/device');
         const list = document.getElementById('device-explorer-list');
+        
+        state.devices.forEach(dev => {
+            if (state.logFilters.devices[dev.id] === undefined) {
+                state.logFilters.devices[dev.id] = false;
+            }
+        });
+        if (window.updateLogFiltersUI) window.updateLogFiltersUI();
+
         if (!list) return;
         list.innerHTML = '';
         state.devices.forEach(dev => {
@@ -670,10 +679,69 @@ window.setWaveformStyle = (id, s) => { if (state.waveform.history[id]) { state.w
 
 function addLog(m, t = 'info') {
     const d = document.getElementById('debug-window'), tl = document.getElementById('test-log'); if (!d) return;
-    const e = document.createElement('div'); e.className = `log-entry ${t}`; e.innerHTML = `<span style="color: #4b5563">[${new Date().toLocaleTimeString()}]</span> ${m}`;
-    d.appendChild(e.cloneNode(true)); if (tl && (m.startsWith('Step') || t === 'success' || t === 'error')) { tl.appendChild(e); tl.scrollTop = tl.scrollHeight; }
+    const e = document.createElement('div'); e.className = `log-entry ${t}`; 
+    e.innerHTML = `<span style="color: #4b5563">[${new Date().toLocaleTimeString()}]</span> ${m}`;
+
+    let source = 'system';
+    if (m.includes('devices.')) source = 'device_unknown';
+    
+    state.devices.forEach(dev => {
+        if (m.includes(dev.id) || m.includes(dev.plugin) || (dev.vendor && m.toLowerCase().includes(dev.vendor.toLowerCase()))) {
+            source = dev.id;
+        }
+    });
+    if (source === 'device_unknown' && state.devices.length === 1) source = state.devices[0].id;
+    
+    e.setAttribute('data-source', source);
+    
+    let isVisible = true;
+    if (source === 'system' && !state.logFilters.system) isVisible = false;
+    if (source !== 'system') {
+        const devChecked = source === 'device_unknown' ? Object.values(state.logFilters.devices).some(v => v) : state.logFilters.devices[source];
+        if (!devChecked) isVisible = false;
+    }
+    
+    if (!isVisible) e.style.display = 'none';
+
+    d.appendChild(e.cloneNode(true)); 
+    if (tl && (m.startsWith('Step') || t === 'success' || t === 'error')) { tl.appendChild(e); tl.scrollTop = tl.scrollHeight; }
     const as = document.getElementById('chk-autoscroll'); if (as && as.checked) d.scrollTop = d.scrollHeight;
 }
+
+window.updateLogFiltersUI = () => {
+    const container = document.getElementById('device-log-filters');
+    if (!container) return;
+    let html = '';
+    state.devices.forEach(dev => {
+        const isChecked = state.logFilters.devices[dev.id] ? 'checked' : '';
+        html += `<label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="checkbox" class="filter-device" value="${dev.id}" ${isChecked} onchange="state.logFilters.devices['${dev.id}'] = this.checked; updateLogVisibility()"> ${dev.id}</label>`;
+    });
+    container.innerHTML = html;
+};
+
+window.updateLogFilters = () => {
+    const sysFilter = document.getElementById('filter-system');
+    if (sysFilter) state.logFilters.system = sysFilter.checked;
+    updateLogVisibility();
+};
+
+window.updateLogVisibility = () => {
+    const logs = document.querySelectorAll('.log-entry');
+    logs.forEach(log => {
+        if (!log.hasAttribute('data-source')) return;
+        const source = log.getAttribute('data-source');
+        let isVisible = true;
+        if (source === 'system' && !state.logFilters.system) isVisible = false;
+        if (source !== 'system') {
+            const devChecked = source === 'device_unknown' ? Object.values(state.logFilters.devices).some(v => v) : state.logFilters.devices[source];
+            if (!devChecked) isVisible = false;
+        }
+        log.style.display = isVisible ? 'block' : 'none';
+    });
+    const d = document.getElementById('debug-window');
+    const as = document.getElementById('chk-autoscroll'); 
+    if (as && as.checked && d) d.scrollTop = d.scrollHeight;
+};
 
 async function apiGet(p) { const r = await fetch(p); if (!r.ok) throw new Error(await r.text()); return r.json(); }
 async function apiPut(p, b) { const r = await fetch(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); if (!r.ok) throw new Error(await r.text()); return r.json(); }
