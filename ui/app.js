@@ -251,7 +251,13 @@ function createWidgetCard(widget) {
     else if (widget.type === 'slider') {
         const ch = state.channels.find(c => c.channel_id === widget.channel);
         const min = ch ? ch.properties.min : 0, max = ch ? ch.properties.max : 100;
-        content += `<div class="widget-content slider-container"><input type="range" class="btn-block" onchange="widgetWrite('${widget.channel}', this.value)" min="${min}" max="${max}" value="${min}" id="slider-${widget.id}"><div class="widget-value-sm" id="val-${widget.id}">--</div></div>`;
+        const currentVal = ch ? ch.properties.value : min;
+        content += `<div class="widget-content slider-container">
+            <input type="range" class="widget-slider" 
+                oninput="document.getElementById('val-${widget.id}').innerText = Number(this.value).toFixed(2); widgetWrite('${widget.channel}', this.value)" 
+                min="${min}" max="${max}" value="${currentVal}" id="slider-${widget.id}">
+            <div class="widget-value-sm" id="val-${widget.id}">${Number(currentVal).toFixed(2)}</div>
+        </div>`;
     } else content += `<div class="widget-content numeric-container"><div class="widget-value" id="val-${widget.id}">--</div></div>`;
     card.innerHTML = content;
     lucide.createIcons();
@@ -273,7 +279,10 @@ function updateWidgetValue(widget, val) {
         valEl.innerText = isActive ? 'ON' : 'OFF';
     } else if (widget.type === 'gauge' || widget.type === 'numeric' || widget.type === 'slider') {
         valEl.innerText = Number(val).toFixed(2);
-        if (widget.type === 'slider') { const slider = document.getElementById(`slider-${widget.id}`); if (slider) slider.value = val; }
+        if (widget.type === 'slider') { 
+            const slider = document.getElementById(`slider-${widget.id}`); 
+            if (slider && document.activeElement !== slider) slider.value = val; 
+        }
     } else if (widget.type === 'bar') {
         const fill = document.getElementById(`fill-${widget.id}`);
         if (fill) {
@@ -394,7 +403,8 @@ async function openChannelModal(chan = null) {
     const inputId = document.getElementById('chan-id'), selectDevice = document.getElementById('chan-device'), selectSignal = document.getElementById('chan-signal');
     const inputUnit = document.getElementById('chan-unit'), inputScale = document.getElementById('chan-scale'), inputMin = document.getElementById('chan-min'), inputMax = document.getElementById('chan-max');
     inputId.value = chan ? chan.channel_id : '';
-    inputId.disabled = !!chan;
+    // Allow renaming Channel ID
+    inputId.disabled = false;
     inputUnit.value = chan ? chan.properties.unit : '';
     inputScale.value = chan ? chan.properties.resolution : 1;
     inputMin.value = chan ? chan.properties.min : 0;
@@ -563,7 +573,7 @@ function subscribeToDeviceSignal(devId, sigId) {
 async function refreshDevices() {
     try {
         state.devices = await apiGet('/device');
-        const list = document.getElementById('device-explorer-list');
+        const tabs = document.getElementById('device-tabs');
 
         state.devices.forEach(dev => {
             if (state.logFilters.devices[dev.id] === undefined) {
@@ -572,40 +582,26 @@ async function refreshDevices() {
         });
         if (window.updateLogFiltersUI) window.updateLogFiltersUI();
 
-        if (!list) return;
-        list.innerHTML = '';
+        if (!tabs) return;
+        tabs.innerHTML = '';
         state.devices.forEach(dev => {
-            const item = document.createElement('div');
-            item.className = 'device-item';
-
-            let statusText = '';
-            let statusClass = '';
-
-            if (!dev.enabled) {
-                statusText = 'Disabled';
-                statusClass = 'disabled';
-            } else {
-                const isOnline = dev.status === 'online' || dev.status === 'connected';
-                statusText = isOnline ? 'Online' : 'Offline';
-                statusClass = isOnline ? 'online' : 'offline';
-            }
-
-            item.innerHTML = `
-                <div class="flex-row" style="justify-content: space-between">
-                    <strong>${dev.id}</strong>
-                    <div class="flex-row" style="gap: 10px">
-                        <span class="status-badge ${statusClass}">${statusText}</span>
-                        <label class="switch-sm" title="${dev.enabled ? 'Disable' : 'Enable'} Device">
-                            <input type="checkbox" ${dev.enabled ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked); event.stopPropagation();">
-                            <span class="slider-sm"></span>
-                        </label>
-                    </div>
-                </div>
-                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 5px">${dev.vendor} ${dev.model}</div>
+            const isOnline = dev.status === 'online' || dev.status === 'connected';
+            const tab = document.createElement('div');
+            tab.className = `tab-item ${state.activeDeviceId === dev.id ? 'active' : ''}`;
+            tab.innerHTML = `
+                <i data-lucide="${isOnline ? 'cpu' : 'zap-off'}" class="${isOnline ? 'text-success' : 'text-muted'}"></i>
+                <span>${dev.id}</span>
+                <span class="status-badge-sm ${isOnline ? 'online' : 'offline'}" style="font-size: 0.6rem; padding: 1px 4px">${isOnline ? 'ON' : 'OFF'}</span>
             `;
-            item.onclick = () => showDeviceSignals(dev.id);
-            list.appendChild(item);
+            tab.onclick = () => {
+                showDeviceSignals(dev.id);
+                document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+            };
+            tabs.appendChild(tab);
         });
+        lucide.createIcons();
+        if (state.activeDeviceId) updateDeviceSignalsList(state.activeDeviceId);
     } catch (e) { addLog('Devices load fail', 'error'); }
 }
 
@@ -663,12 +659,31 @@ async function updateDeviceSignalsList(id) {
         const sigs = await apiGet(`/device/${id}/signal`);
         const dev = state.devices.find(d => d.id === id);
         const isOnline = dev ? (dev.status === 'online' || dev.status === 'connected') : false;
-        let h = `<div class="detail-header"><h3>Signals for ${id} <span class="status-badge-sm ${isOnline ? 'online' : 'offline'}" style="font-size: 0.7rem; padding: 2px 6px">${isOnline ? 'Online' : 'Offline'}</span></h3></div><table class="table"><thead><tr><th>ID</th><th>Name</th><th>Dir</th><th>Range</th><th>Value</th><th>Actions</th></tr></thead><tbody>`;
+        let h = `
+            <div class="device-toolbar">
+                <div class="flex-row" style="gap: 15px">
+                    <div class="device-info-pills">
+                        <span class="badge badge-outline">${dev.vendor}</span>
+                        <span class="badge badge-outline">${dev.model}</span>
+                        <span class="badge badge-outline">v${dev.firmware_version || '1.0'}</span>
+                    </div>
+                </div>
+                <div class="flex-row" style="gap: 10px">
+                    <span style="font-size: 0.85rem; color: var(--text-muted)">Device Enable:</span>
+                    <label class="switch-sm" title="${dev.enabled ? 'Disable' : 'Enable'} Device">
+                        <input type="checkbox" ${dev.enabled ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked)">
+                        <span class="slider-sm"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="detail-header"><h3>Signals for ${id} <span class="status-badge-sm ${isOnline ? 'online' : 'offline'}" style="font-size: 0.7rem; padding: 2px 6px">${isOnline ? 'Online' : 'Offline'}</span></h3></div>
+            <table class="table"><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Dir</th><th>Range</th><th>Value</th><th>Actions</th></tr></thead><tbody>`;
         sigs.forEach(s => {
             const val = Number(s.value).toFixed(2);
             h += `<tr>
                 <td><code class="badge badge-sm">${s.signal_id}</code></td>
                 <td>${s.name}</td>
+                <td style="font-size: 0.8rem; color: var(--text-muted)">${s.description || ''}</td>
                 <td>${s.direction}</td>
                 <td>${s.min}-${s.max} ${s.unit}</td>
                 <td><input type="number" step="0.01" class="table-input" id="sig-input-${s.signal_id}" value="${val}" style="width: 80px"></td>
