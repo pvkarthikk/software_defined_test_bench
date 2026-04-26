@@ -165,4 +165,4 @@ The `DeviceManager` and `FlashManager` automatically discover these files, load 
 
 ## License
 
-[License Information]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
