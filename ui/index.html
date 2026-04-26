@@ -78,6 +78,9 @@
                 <button class="nav-item" data-view="debug" title="Debug Window">
                     <i data-lucide="terminal"></i>
                 </button>
+                <button class="nav-item" data-view="flash" title="Software Flasher">
+                    <i data-lucide="zap"></i>
+                </button>
                 <div class="sidebar-spacer"></div>
                 <button class="nav-item" data-view="settings" title="Settings">
                     <i data-lucide="settings"></i>
@@ -151,11 +154,11 @@
 
             <div id="view-dashboard" class="view">
                 <div class="view-header">
-                <div class="view-actions">
-                    <div class="flex-row" style="gap: 10px;">
-                        <span class="badge badge-outline">Live Streaming Active</span>
+                    <div class="view-actions">
+                        <div class="flex-row" style="gap: 10px;">
+                            <span class="badge badge-outline">Live Streaming Active</span>
+                        </div>
                     </div>
-                </div>
                 </div>
                 <div id="dashboard-grid" class="dashboard-grid">
                     <!-- Widgets will be injected here -->
@@ -294,6 +297,81 @@
                 </div>
             </div>
 
+            <div id="view-flash" class="view">
+                <!-- <div class="view-header">
+                    <div class="view-actions">
+                        <div class="flex-row" style="gap: 10px;">
+                            <span class="badge badge-outline">Flash Subsystem Active</span>
+                        </div>
+                    </div>
+                </div> -->
+                <div class="flash-container">
+                    <div class="card flash-controls">
+                        <h3>Flash Configuration</h3>
+                        <div class="form-group">
+                            <label>Protocol / Target</label>
+                            <select id="flash-protocol-select" class="table-input full-width"></select>
+                        </div>
+                        <div class="flex-row" style="gap: 10px; margin-top: 10px;">
+                            <button id="btn-flash-connect" class="btn btn-outline btn-sm" style="flex: 1;">
+                                <i data-lucide="link"></i> Connect
+                            </button>
+                            <button id="btn-flash-disconnect" class="btn btn-outline btn-sm hidden" style="flex: 1;">
+                                <i data-lucide="link-2"></i> Disconnect
+                            </button>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>Firmware Image</label>
+                            <div id="flash-drop-zone" class="drop-zone">
+                                <i data-lucide="upload-cloud"></i>
+                                <p>Drag & Drop file or <span>Browse</span></p>
+                                <input type="file" id="flash-file-input" hidden>
+                            </div>
+                            <div id="flash-file-info" class="hidden" style="margin-top: 10px;">
+                                <div class="flex-row" style="justify-content: space-between; align-items: center;">
+                                    <span id="flash-file-name"
+                                        style="font-size: 0.9rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">image.bin</span>
+                                    <span id="flash-file-size" class="badge">0 KB</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>Flash Parameters (JSON)</label>
+                            <textarea id="flash-params" class="table-input full-width"
+                                style="height: 60px; font-family: monospace;">{}</textarea>
+                        </div>
+
+                        <button id="btn-flash-start" class="btn btn-primary btn-block" style="margin-top: 20px;"
+                            disabled>
+                            <i data-lucide="zap"></i> Start Flashing
+                        </button>
+                    </div>
+
+                    <div class="flash-main">
+                        <div class="card flash-progress-card">
+                            <div class="flex-row"
+                                style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3>Progress</h3>
+                                <span id="flash-progress-text" class="badge">Ready</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div id="flash-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="card flash-log-card"
+                            style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                            <h3>Operation Logs</h3>
+                            <div id="flash-log" class="debug-window" style="flex: 1; margin-top: 10px;">
+                                <div class="log-entry system">Waiting for operation...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="view-settings" class="view">
                 <div class="view-header">
                     <button id="btn-save-settings" class="btn btn-primary btn-sm">
@@ -313,9 +391,11 @@
                         <label>Server Port</label>
                         <input type="number" id="setting-port" class="table-input">
                     </div>
-                    <div class="form-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                    <div class="form-group"
+                        style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
                         <label>Workspace Management</label>
-                        <button class="btn btn-outline btn-block" onclick="resetLayout()" style="color: var(--accent-danger)">
+                        <button class="btn btn-outline btn-block" onclick="resetLayout()"
+                            style="color: var(--accent-danger)">
                             <i data-lucide="layout"></i> Reset to Default Layout
                         </button>
                     </div>
@@ -423,14 +503,16 @@
                 <div class="section-label">Signal Source</div>
                 <div class="source-selector">
                     <label class="source-option">
-                        <input type="radio" name="plot-type-radio" value="channel" checked onchange="onPlotSourceTypeChange('channel')">
+                        <input type="radio" name="plot-type-radio" value="channel" checked
+                            onchange="onPlotSourceTypeChange('channel')">
                         <div class="source-card">
                             <i data-lucide="git-branch"></i>
                             <span>Virtual Channel</span>
                         </div>
                     </label>
                     <label class="source-option">
-                        <input type="radio" name="plot-type-radio" value="device" onchange="onPlotSourceTypeChange('device')">
+                        <input type="radio" name="plot-type-radio" value="device"
+                            onchange="onPlotSourceTypeChange('device')">
                         <div class="source-card">
                             <i data-lucide="cpu"></i>
                             <span>Physical Device</span>
@@ -438,18 +520,19 @@
                     </label>
                 </div>
                 <input type="hidden" id="plot-type" value="channel">
-                
+
                 <div id="plot-channel-group" class="form-group animate-fade-in">
                     <label><i data-lucide="hash"></i> Channel Name</label>
                     <select id="plot-channel" class="table-input full-width"></select>
                 </div>
-                
+
                 <div id="plot-device-selection-group" class="hidden animate-fade-in">
                     <div class="form-group">
                         <label><i data-lucide="box"></i> Target Device</label>
-                        <select id="plot-device" class="table-input full-width" onchange="updatePlotDeviceSignals()"></select>
+                        <select id="plot-device" class="table-input full-width"
+                            onchange="updatePlotDeviceSignals()"></select>
                     </div>
-                    
+
                     <div id="plot-signal-group" class="form-group">
                         <label><i data-lucide="activity"></i> Device Signal</label>
                         <select id="plot-signal" class="table-input full-width"></select>
@@ -499,7 +582,9 @@
                     <button class="btn btn-outline btn-sm" onclick="closeQuickWaveform()">Close</button>
                 </div>
             </div>
-            <div id="quick-wave-container" style="width: 100%; height: 400px; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden;"></div>
+            <div id="quick-wave-container"
+                style="width: 100%; height: 400px; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden;">
+            </div>
             <div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-muted);">
                 Live data stream for <span id="quick-wave-channel-id" class="badge"></span>
             </div>

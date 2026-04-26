@@ -19,7 +19,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-from routers import system, device, channel, test, ui, mcp
+from routers import system, device, channel, test, ui, mcp, flash
 
 # Access the singleton system instance
 sdtb_system = system.system
@@ -28,6 +28,7 @@ app.include_router(system.router)
 app.include_router(device.router)
 app.include_router(channel.router)
 app.include_router(test.router)
+app.include_router(flash.router)
 app.include_router(ui.router)
 
 # Special handling for MCP routes to avoid ASGI response conflicts

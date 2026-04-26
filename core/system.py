@@ -7,6 +7,7 @@ from core.device_manager import DeviceManager
 from core.channel_manager import ChannelManager
 from core.test_engine import TestEngine
 from core.stream_manager import StreamManager
+from core.flash_manager import FlashManager
 from models.config import SystemConfig, ChannelConfig, UIConfig
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class SDTBSystem:
         # Initialize core managers
         self.device_manager = DeviceManager(self.system_config.device_directory, self.config_manager)
         self.stream_manager = StreamManager()
+        self.flash_manager = FlashManager(self.system_config.device_directory, self.config_manager)
         self.channel_manager = ChannelManager(self.device_manager, self.stream_manager)
         self.test_engine = TestEngine(self.channel_manager)
         
@@ -68,8 +70,9 @@ class SDTBSystem:
         """
         logger.info("Starting up SDTB System...")
         
-        # 1. Discover and initialize devices
+        # 1. Discover and initialize devices and flash protocols
         self.device_manager.discover_and_initialize()
+        self.flash_manager.discover_and_initialize()
         
         # 2. Load and initialize channels
         try:

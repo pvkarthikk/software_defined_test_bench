@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 class PluginLoader:
     @staticmethod
-    def discover_plugins(directory: str) -> List[Type[BaseDevice]]:
+    def discover_plugins(directory: str, pattern: str = "device_", base_class: type = BaseDevice) -> List[Type]:
         """
-        Scans the specified directory for 'device_*.py' files and returns
-        a list of classes that implement BaseDevice.
+        Scans the specified directory for files matching the pattern and returns
+        a list of classes that implement the specified base_class.
         """
         plugins = []
         if not os.path.exists(directory):
@@ -20,7 +20,7 @@ class PluginLoader:
             return plugins
 
         for filename in os.listdir(directory):
-            if filename.startswith("device_") and filename.endswith(".py"):
+            if filename.startswith(pattern) and filename.endswith(".py"):
                 file_path = os.path.join(directory, filename)
                 module_name = filename[:-3]
                 
@@ -33,13 +33,13 @@ class PluginLoader:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
 
-                    # Inspect the module for classes inheriting from BaseDevice
+                    # Inspect the module for classes inheriting from base_class
                     for name, obj in inspect.getmembers(module):
                         if (inspect.isclass(obj) and 
-                            issubclass(obj, BaseDevice) and 
-                            obj is not BaseDevice):
+                            issubclass(obj, base_class) and 
+                            obj is not base_class):
                             plugins.append(obj)
-                            logger.info(f"Discovered plugin: {name} in {filename}")
+                            logger.info(f"Discovered {pattern} plugin: {name} in {filename}")
                 except Exception as e:
                     logger.error(f"Failed to load plugin module {filename}: {e}")
         

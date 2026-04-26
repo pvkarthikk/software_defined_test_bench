@@ -47,3 +47,10 @@ class WidgetConfig(BaseModel):
 class UIConfig(BaseModel):
     layout: str
     widgets: List[WidgetConfig]
+
+class FlashConfig(BaseModel):
+    id: str
+    plugin: str
+    enabled: bool = True
+    connection_params: Dict[str, Any]
+    settings: Dict[str, Any] = {}

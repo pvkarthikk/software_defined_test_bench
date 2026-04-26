@@ -29,7 +29,8 @@ const state = {
     isBackendAlive: true,
     heartbeatTimer: null,
     layout: null,
-    quickWave: { active: false, plotter: null, data: [[], []], channelId: null, paused: false }
+    quickWave: { active: false, plotter: null, data: [[], []], channelId: null, paused: false },
+    flash: { selectedFile: null, protocols: [], connectedId: null, activeExecutionId: null, sse: null }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -42,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupWidgetMapper();
     setupChannelMapper();
     setupWaveformViewer();
+    setupFlashView();
     setupTheme(); // Initialize theme toggle
     setupSSE();
     setupHeartbeat();
@@ -58,6 +60,7 @@ const viewTitles = {
     'waveform': 'Waveform Viewer',
     'test-editor': 'Test Editor',
     'debug': 'System Logs',
+    'flash': 'Software Flasher',
     'settings': 'Settings'
 };
 
@@ -159,6 +162,7 @@ function refreshViewContent(viewId) {
     if (viewId === 'devices') refreshDevices();
     if (viewId === 'waveform') initWaveformViewer();
     if (viewId === 'test-editor') renderTestTable();
+    if (viewId === 'flash') initFlashView();
 }
 
 function setupNavigation() {
@@ -1403,3 +1407,251 @@ window.clearQuickWave = () => {
     }
     addLog('Quick Waveform Cleared', 'info');
 };
+
+/**
+ * FLASH VIEW LOGIC
+ */
+function setupFlashView() {
+    const dropZone = document.getElementById('flash-drop-zone');
+    const fileInput = document.getElementById('flash-file-input');
+    const btnConnect = document.getElementById('btn-flash-connect');
+    const btnDisconnect = document.getElementById('btn-flash-disconnect');
+    const btnStart = document.getElementById('btn-flash-start');
+    const btnAbort = document.getElementById('btn-flash-abort');
+
+    if (dropZone && fileInput) {
+        dropZone.onclick = () => fileInput.click();
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFlashFileSelect(e.dataTransfer.files[0]);
+        };
+        fileInput.onchange = (e) => {
+            if (e.target.files.length) handleFlashFileSelect(e.target.files[0]);
+        };
+    }
+
+    if (btnConnect) {
+        btnConnect.onclick = async () => {
+            const id = document.getElementById('flash-protocol-select').value;
+            if (!id) return;
+            try {
+                await apiPost(`/flash/connect?flash_id=${id}`);
+                state.flash.connectedId = id;
+                btnConnect.classList.add('hidden');
+                btnDisconnect.classList.remove('hidden');
+                updateFlashStartButton();
+                addFlashLog(`Connected to target using ${id}`, 'success');
+            } catch (e) { addFlashLog(`Connection failed: ${e.message}`, 'error'); }
+        };
+    }
+
+    if (btnDisconnect) {
+        btnDisconnect.onclick = async () => {
+            if (!state.flash.connectedId) return;
+            try {
+                await apiPost(`/flash/disconnect?flash_id=${state.flash.connectedId}`);
+                state.flash.connectedId = null;
+                btnConnect.classList.remove('hidden');
+                btnDisconnect.classList.add('hidden');
+                updateFlashStartButton();
+                addFlashLog(`Disconnected from target`, 'info');
+            } catch (e) { addFlashLog(`Disconnect failed: ${e.message}`, 'error'); }
+        };
+    }
+
+    if (btnStart) {
+        btnStart.onclick = async () => {
+            // If already flashing, this button acts as an Abort button
+            if (state.flash.activeExecutionId) {
+                if (!confirm('Are you sure you want to abort the flashing operation?')) return;
+                try {
+                    await apiPost(`/flash/abort?flash_id=${state.flash.connectedId}&execution_id=${state.flash.activeExecutionId}`);
+                    addFlashLog('Abort command sent', 'warning');
+                } catch (e) { addFlashLog(`Abort failed: ${e.message}`, 'error'); }
+                return;
+            }
+
+            if (!state.flash.connectedId || !state.flash.selectedFile) return;
+            
+            const flashId = state.flash.connectedId;
+            const params = document.getElementById('flash-params').value;
+            
+            const formData = new FormData();
+            formData.append('flash_id', flashId);
+            formData.append('file', state.flash.selectedFile);
+            formData.append('params', params);
+
+            try {
+                setFlashButtonState('flashing');
+                addFlashLog('Starting flashing process...', 'info');
+                
+                const res = await fetch('/flash', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(await res.text());
+                
+                const data = await res.json();
+                state.flash.activeExecutionId = data.execution_id;
+                startFlashLogStream(flashId, data.execution_id);
+                startFlashStatusPolling(flashId, data.execution_id);
+            } catch (e) {
+                addFlashLog(`Flash failed to start: ${e.message}`, 'error');
+                setFlashButtonState('idle');
+            }
+        };
+    }
+    updateFlashStartButton();
+}
+
+async function initFlashView() {
+    try {
+        const protocols = await apiGet('/system'); // We can get system info or a dedicated endpoint
+        // For now, let's assume we have an endpoint or just mock it since we haven't implemented get_protocols API
+        // Actually, I implemented FlashManager, but let's see if I should add a list endpoint
+        // I'll check my flash.py router
+    } catch (e) {}
+    
+    // Refresh protocols list
+    updateFlashProtocols();
+    updateFlashStartButton();
+}
+
+async function updateFlashProtocols() {
+    const select = document.getElementById('flash-protocol-select');
+    if (!select) return;
+    
+    try {
+        const protocols = await apiGet('/flash/protocols');
+        select.innerHTML = '';
+        
+        if (protocols.length === 0) {
+            const opt = document.createElement('option');
+            opt.text = 'No protocols found';
+            opt.disabled = true;
+            select.appendChild(opt);
+            return;
+        }
+
+        protocols.forEach(p => {
+            if (p.enabled === false) return;
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.text = `${p.id} (${p.plugin})`;
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        addFlashLog('Failed to load flash protocols', 'error');
+    }
+}
+
+function handleFlashFileSelect(file) {
+    state.flash.selectedFile = file;
+    const info = document.getElementById('flash-file-info');
+    const nameEl = document.getElementById('flash-file-name');
+    const sizeEl = document.getElementById('flash-file-size');
+    
+    if (info && nameEl && sizeEl) {
+        nameEl.innerText = file.name;
+        sizeEl.innerText = `${(file.size / 1024).toFixed(1)} KB`;
+        info.classList.remove('hidden');
+    }
+    
+    updateFlashStartButton();
+    addFlashLog(`Selected file: ${file.name}`, 'info');
+}
+
+function updateFlashStartButton() {
+    const btn = document.getElementById('btn-flash-start');
+    if (!btn) return;
+
+    // If currently flashing, the button is used for Abort and should be enabled
+    if (state.flash.activeExecutionId) {
+        btn.disabled = false;
+        return;
+    }
+    
+    const isConnected = !!state.flash.connectedId;
+    const hasFile = !!state.flash.selectedFile;
+    
+    btn.disabled = !(isConnected && hasFile);
+}
+
+function setFlashButtonState(mode) {
+    const btn = document.getElementById('btn-flash-start');
+    if (!btn) return;
+
+    if (mode === 'flashing') {
+        btn.innerHTML = '<i data-lucide="octagon"></i> Abort Operation';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline');
+        btn.style.color = 'var(--accent-danger)';
+        btn.style.borderColor = 'var(--accent-danger)';
+        btn.disabled = false;
+    } else {
+        btn.innerHTML = '<i data-lucide="zap"></i> Start Flashing';
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-outline');
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        state.flash.activeExecutionId = null;
+        updateFlashStartButton();
+    }
+    lucide.createIcons(btn);
+}
+
+function addFlashLog(msg, type = 'info') {
+    const log = document.getElementById('flash-log');
+    if (!log) return;
+    
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    entry.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+}
+
+function startFlashLogStream(flashId, execId) {
+    if (state.flash.sse) state.flash.sse.close();
+    
+    const sse = new EventSource(`/flash/log?flash_id=${flashId}&execution_id=${execId}`);
+    state.flash.sse = sse;
+    
+    sse.onmessage = (e) => {
+        if (e.data.startsWith('FLASH_PROCESS_TERMINATED')) {
+            addFlashLog(`Process finished: ${e.data.split(': ')[1]}`, 'system');
+            sse.close();
+            state.flash.sse = null;
+            setFlashButtonState('idle');
+            return;
+        }
+        addFlashLog(e.data, 'debug');
+    };
+    
+    sse.onerror = () => {
+        addFlashLog('Log stream disconnected', 'error');
+        sse.close();
+        state.flash.sse = null;
+    };
+}
+
+function startFlashStatusPolling(flashId, execId) {
+    const poll = setInterval(async () => {
+        try {
+            const status = await apiGet(`/flash/status?flash_id=${flashId}&execution_id=${execId}`);
+            const progress = status.progress || 0;
+            const bar = document.getElementById('flash-progress-bar');
+            const text = document.getElementById('flash-progress-text');
+            
+            if (bar) bar.style.width = `${progress}%`;
+            if (text) text.innerText = `${status.status} (${progress}%)`;
+            
+            if (["success", "failed", "aborted", "error"].includes(status.status.toLowerCase())) {
+                clearInterval(poll);
+                addFlashLog(`Final Status: ${status.status}`, status.status.toLowerCase() === 'success' ? 'success' : 'error');
+            }
+        } catch (e) {
+            clearInterval(poll);
+        }
+    }, 1000);
+}
