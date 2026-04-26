@@ -75,6 +75,7 @@ The server will start on `http://localhost:8000`. You can access the UI at `http
 | [api.md](docs/api.md) | Detailed REST API reference and input definitions |
 | [spec.md](docs/spec.md) | System specifications and protocol definitions |
 | [design.md](docs/design.md) | Architectural design and implementation details |
+| [AGENTS.md](AGENTS.md) | Guide for AI agents and agentic automation |
 
 ## MCP Integration
 
