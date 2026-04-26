@@ -108,3 +108,14 @@ async def stream_device_signal(device_id: str, signal_id: str):
     """
     from sse_starlette.sse import EventSourceResponse
     return EventSourceResponse(system.stream_manager.subscribe_device_signal(device_id, signal_id))
+
+@router.post("/{device_id}/restart")
+async def restart_device(device_id: str):
+    device = system.device_manager.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
+    try:
+        device.restart()
+        return {"message": f"Device {device_id} restart initiated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

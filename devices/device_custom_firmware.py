@@ -12,6 +12,7 @@ class ArduinoCustomFirmwareDevice(BaseDevice):
         self._enabled = True
         self._signals: List[SignalDefinition] = []
         self._signal_map: Dict[str, SignalDefinition] = {}
+        self._connection_params: dict = {}
         self._create_signals()
 
     @property
@@ -60,6 +61,7 @@ class ArduinoCustomFirmwareDevice(BaseDevice):
         self._signal_map = {s.signal_id: s for s in self._signals}
 
     def connect(self, connection_params: dict) -> None:
+        self._connection_params = connection_params
         port = connection_params.get("port", "COM3")
         baud = connection_params.get("baud", 115200)
         try:
@@ -83,6 +85,16 @@ class ArduinoCustomFirmwareDevice(BaseDevice):
 
     def get_signals(self) -> List[SignalDefinition]:
         return self._signals
+
+    def restart(self) -> None:
+        logger.info(f"Restarting device {self.model}...")
+        self.disconnect()
+        import time
+        time.sleep(1) # Grace period
+        if self._connection_params:
+            self.connect(self._connection_params)
+        else:
+            logger.warn("Cannot restart: No connection parameters stored")
 
     def read_signal(self, signal_id: str) -> Any:
         if signal_id not in self._signal_map:

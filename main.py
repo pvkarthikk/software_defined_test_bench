@@ -10,7 +10,7 @@ async def lifespan(app: FastAPI):
     sdtb_system.startup()
     yield
     # Shutdown
-    sdtb_system.shutdown()
+    await sdtb_system.shutdown()
 
 app = FastAPI(
     title="Software Defined Test Bench (SDTB)",

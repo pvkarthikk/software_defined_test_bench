@@ -7,8 +7,10 @@
     <title>Software Defined Test Bench</title>
     <link rel="stylesheet" href="style.css?v=5">
     <link rel="stylesheet" href="https://unpkg.com/uplot/dist/uPlot.min.css">
-    <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/golden-layout/1.5.9/css/goldenlayout-base.css" />
-    <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/golden-layout/1.5.9/css/themes/goldenlayout-dark-theme.css" />
+    <link type="text/css" rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/golden-layout/1.5.9/css/goldenlayout-base.css" />
+    <link type="text/css" rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/golden-layout/1.5.9/css/themes/goldenlayout-dark-theme.css" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -101,16 +103,22 @@
                         </div>
                     </div>
                 </div>
-                <div class="explorer-container">
-                    <div class="explorer-master" style="display: flex; flex-direction: column; gap: 15px; overflow-y: auto;">
-                        <div class="detail-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3>Active Plots</h3>
-                            <button id="btn-add-plot" class="btn btn-outline btn-sm" onclick="openPlotModal()">
-                                <i data-lucide="plus"></i> Add
-                            </button>
+                <div class="explorer-container" id="waveform-explorer">
+                    <div class="explorer-master" id="waveform-sidebar">
+                        <div class="sidebar-toggle" onclick="toggleWaveformSidebar()">
+                            <i data-lucide="chevron-left" id="waveform-toggle-icon"></i>
                         </div>
-                        <div id="waveform-channels-list" style="display: flex; flex-direction: column; gap: 10px;">
-                            <!-- Populated dynamically -->
+                        <div class="sidebar-content">
+                            <div class="detail-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3>Active Plots</h3>
+                                <button id="btn-add-plot" class="btn btn-outline btn-sm" onclick="openPlotModal()">
+                                    <i data-lucide="plus"></i> Add
+                                </button>
+                            </div>
+                            <div id="waveform-channels-list" style="display: flex; flex-direction: column; gap: 10px;">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
                     </div>
                     <div class="explorer-detail card" style="padding: 15px; position: relative;">
@@ -139,10 +147,10 @@
             </div>
 
             <div id="view-devices" class="view">
-                <div class="view-header">
+                <!-- <div class="view-header">
                     <div class="view-actions">
                     </div>
-                </div>
+                </div> -->
                 <div class="tabs-container" id="device-tabs">
                     <!-- Tabs for each device -->
                 </div>
@@ -243,19 +251,24 @@
             <div id="view-debug" class="view">
                 <div class="view-header" style="flex-wrap: wrap; gap: 10px;">
                     <div class="view-actions" style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
-                        <div id="log-filters" style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
-                            <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <div id="log-filters"
+                            style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <label
+                                style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
                                 <input type="checkbox" id="filter-system" checked onchange="updateLogFilters()">
                                 System
                             </label>
-                            <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--accent-primary);">
+                            <label
+                                style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--accent-primary);">
                                 <input type="checkbox" id="filter-debug" onchange="updateLogFilters()"> Debug
                             </label>
-                            <div id="device-log-filters" style="display: flex; gap: 10px; border-left: 1px solid var(--border-color); padding-left: 10px;">
+                            <div id="device-log-filters"
+                                style="display: flex; gap: 10px; border-left: 1px solid var(--border-color); padding-left: 10px;">
                                 <!-- Device filters injected here -->
                             </div>
                         </div>
-                        <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <label
+                            style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
                             <input type="checkbox" id="chk-autoscroll" checked> AutoScroll
                         </label>
                     </div>
@@ -283,6 +296,12 @@
                     <div class="form-group">
                         <label>Server Port</label>
                         <input type="number" id="setting-port" class="table-input">
+                    </div>
+                    <div class="form-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                        <label>Workspace Management</label>
+                        <button class="btn btn-outline btn-block" onclick="resetLayout()" style="color: var(--accent-danger)">
+                            <i data-lucide="layout"></i> Reset to Default Layout
+                        </button>
                     </div>
                 </div>
             </div>
@@ -365,7 +384,8 @@
     </div>
 
     <script src="https://unpkg.com/uplot/dist/uPlot.iife.min.js"></script>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/golden-layout/1.5.9/goldenlayout.min.js"></script>
+    <script type="text/javascript"
+        src="https://cdnjs.cloudflare.com/ajax/libs/golden-layout/1.5.9/goldenlayout.min.js"></script>
     <script src="app.js?v=7"></script>
     <!-- PLOT MODAL -->
     <div id="modal-plot" class="modal">
@@ -407,6 +427,27 @@
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="closeModal('modal-plot')">Cancel</button>
                 <button class="btn btn-primary" onclick="addPlot()">Add Signal</button>
+            </div>
+        </div>
+    </div>
+    <!-- QUICK WAVEFORM MODAL -->
+    <div id="modal-quick-waveform" class="modal">
+        <div class="modal-content card" style="max-width: 800px; width: 90%;">
+            <div class="flex-row" style="justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 id="quick-wave-title" style="margin: 0;">Channel View</h2>
+                <div class="flex-row" style="gap: 10px;">
+                    <button class="btn btn-outline btn-sm" id="btn-quick-pause" onclick="toggleQuickWavePause()">
+                        <i data-lucide="pause"></i> Pause
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="clearQuickWave()">
+                        <i data-lucide="refresh-cw"></i> Clear
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="closeQuickWaveform()">Close</button>
+                </div>
+            </div>
+            <div id="quick-wave-container" style="width: 100%; height: 400px; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden;"></div>
+            <div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-muted);">
+                Live data stream for <span id="quick-wave-channel-id" class="badge"></span>
             </div>
         </div>
     </div>

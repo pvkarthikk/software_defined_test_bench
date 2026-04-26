@@ -29,7 +29,8 @@ const state = {
     logFilters: { system: true, devices: {}, showDebug: false },
     isBackendAlive: true,
     heartbeatTimer: null,
-    layout: null
+    layout: null,
+    quickWave: { active: false, plotter: null, data: [[], []], channelId: null, paused: false }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -64,7 +65,7 @@ function initLayout() {
     const container = document.getElementById('layout-container');
     if (!container) return;
     
-    const config = {
+    const defaultLayout = {
         settings: {
             showPopoutIcon: false,
             showMaximiseIcon: true,
@@ -91,6 +92,9 @@ function initLayout() {
         }]
     };
 
+    let savedLayout = localStorage.getItem('sdtb-layout-v1');
+    let config = savedLayout ? JSON.parse(savedLayout) : defaultLayout;
+
     state.layout = new GoldenLayout(config, $(container));
 
     Object.keys(viewTitles).forEach(viewId => {
@@ -106,14 +110,41 @@ function initLayout() {
                 document.querySelectorAll('.nav-item').forEach(item => {
                     item.classList.toggle('active', item.getAttribute('data-view') === viewId);
                 });
-                refreshViewContent(viewId);
+                
+                // Use a slightly longer timeout to ensure GL has rendered the container
+                setTimeout(() => {
+                    refreshViewContent(viewId);
+                    lucide.createIcons(container.getElement()[0]);
+                }, 100);
             });
             container.on('resize', () => {
                 if (viewId === 'waveform' && state.waveform.plotter) {
-                    state.waveform.plotter.setSize({width: container.width, height: container.height - 100});
+                    const c = document.getElementById('waveform-chart-container');
+                    if (c && c.clientWidth > 0) {
+                        state.waveform.plotter.setSize({
+                            width: c.clientWidth,
+                            height: Math.max(50, c.clientHeight)
+                        });
+                    }
                 }
             });
         });
+    });
+
+    state.layout.on('stateChanged', () => {
+        if (state.layout.isInitialised) {
+            const config = state.layout.toConfig();
+            localStorage.setItem('sdtb-layout-v1', JSON.stringify(config));
+            
+            // Trigger a resize for any visible waveform plotter
+            const c = document.getElementById('waveform-chart-container');
+            if (c && c.clientWidth > 0 && state.waveform.plotter) {
+                state.waveform.plotter.setSize({
+                    width: c.clientWidth,
+                    height: Math.max(50, c.clientHeight)
+                });
+            }
+        }
     });
 
     state.layout.init();
@@ -165,6 +196,13 @@ function setupTheme() {
         addLog(`Switched to ${isLight ? 'Day' : 'Night'} mode`, 'info');
     };
 }
+
+window.resetLayout = () => {
+    if (confirm('Are you sure you want to reset the entire workspace layout? All custom panel positions will be lost.')) {
+        localStorage.removeItem('sdtb-layout-v1');
+        location.reload();
+    }
+};
 
 function switchView(viewId) {
     if (!state.layout || !state.layout.isInitialised) return;
@@ -367,7 +405,7 @@ function createWidgetCard(widget) {
     let content = `<div class="widget-header"><span class="widget-label">${widget.label}</span><div class="widget-actions"><button class="btn-icon" onclick="editWidgetById('${widget.id}')"><i data-lucide="edit-2"></i></button></div></div>`;
     if (widget.type === 'gauge') content += `<div class="widget-content gauge-container"><div class="gauge-value" id="val-${widget.id}">--</div><div class="gauge-label">${widget.type}</div></div>`;
     else if (widget.type === 'bar') content += `<div class="widget-content bar-container"><div class="bar-bg"><div class="bar-fill" id="fill-${widget.id}" style="width: 0%"></div></div><div class="widget-value-sm" id="val-${widget.id}">--</div></div>`;
-    else if (widget.type === 'waveform') content += `<div class="widget-content waveform-container"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline id="poly-${widget.id}" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" points="0,20 100,20" /></svg><div class="widget-value-sm"><span id="val-${widget.id}">--</span></div></div>`;
+    else if (widget.type === 'waveform') content += `<div class="widget-content waveform-container" style="cursor: pointer;" onclick="openQuickWaveform('${widget.channel}')" title="Click for detail view"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline id="poly-${widget.id}" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" points="0,20 100,20" /></svg><div class="widget-value-sm"><span id="val-${widget.id}">--</span></div></div>`;
     else if (widget.type === 'led') content += `<div class="widget-content led-container"><div class="led-bulb" id="led-${widget.id}"></div><div class="widget-value-sm" id="val-${widget.id}">OFF</div></div>`;
     else if (widget.type === 'toggle') {
         content += `<div class="widget-content toggle-container">
@@ -678,6 +716,18 @@ function subscribeToChannel(id) {
             if (state.waveform.history[id].data.length > 1000) state.waveform.history[id].data.shift();
         }
 
+        // Update quick waveform
+        if (state.quickWave.active && state.quickWave.plotter && state.quickWave.channelId === id && !state.quickWave.paused) {
+            const now = Date.now() / 1000;
+            state.quickWave.data[0].push(now);
+            state.quickWave.data[1].push(val);
+            if (state.quickWave.data[0].length > 500) {
+                state.quickWave.data[0].shift();
+                state.quickWave.data[1].shift();
+            }
+            state.quickWave.plotter.setData(state.quickWave.data);
+        }
+
         // Update live value in waveform config bar
         const waveValEl = document.getElementById(`wave-val-${id}`);
         if (waveValEl) waveValEl.innerText = val.toFixed(2);
@@ -721,8 +771,13 @@ async function refreshDevices() {
             tab.className = `tab-item ${state.activeDeviceId === dev.id ? 'active' : ''}`;
             tab.innerHTML = `
                 <i data-lucide="${isOnline ? 'cpu' : 'zap-off'}" class="${isOnline ? 'text-success' : 'text-muted'}"></i>
-                <span>${dev.id}</span>
-                <span class="status-badge-sm ${isOnline ? 'online' : 'offline'}" style="font-size: 0.6rem; padding: 1px 4px">${isOnline ? 'ON' : 'OFF'}</span>
+                <span style="flex: 1">${dev.id}</span>
+                <div class="flex-row" style="gap: 5px">
+                    <button class="btn-icon" onclick="event.stopPropagation(); restartDevice('${dev.id}')" title="Restart Device">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <div class="status-led ${isOnline ? 'online' : 'offline'}" title="${dev.status}"></div>
+                </div>
             `;
             tab.onclick = () => {
                 showDeviceSignals(dev.id);
@@ -752,6 +807,16 @@ window.toggleDevice = async (id, enabled) => {
     } catch (e) {
         addLog(`Toggle fail: ${e.message}`, 'error');
         refreshDevices();
+    }
+};
+
+window.restartDevice = async (id) => {
+    try {
+        await apiPost(`/device/${id}/restart`);
+        addLog(`Device ${id} restart initiated`, 'info');
+        refreshDevices();
+    } catch (e) {
+        addLog(`Restart fail: ${e.message}`, 'error');
     }
 };
 
@@ -974,8 +1039,8 @@ function rebuildWaveformChart() {
         title: "Live Waveform",
         id: "chart1",
         class: "my-chart",
-        width: c.clientWidth || 800,
-        height: c.clientHeight - 40 || 400,
+        width: c.clientWidth,
+        height: c.clientHeight,
         series: series,
         axes: [
             { grid: { stroke: "rgba(255, 255, 255, 0.1)", width: 1 }, stroke: "#94a3b8" },
@@ -990,6 +1055,7 @@ function rebuildWaveformChart() {
     });
 
     waveformChart = new uPlot(opts, data, c);
+    state.waveform.plotter = waveformChart;
 }
 
 function setupWaveformViewer() {
@@ -1044,6 +1110,28 @@ function setupWaveformViewer() {
         requestAnimationFrame(updateWaveformFrame);
     }
     rebuildWaveformChart();
+}
+
+function toggleWaveformSidebar() {
+    const explorer = document.getElementById('waveform-explorer');
+    const icon = document.getElementById('waveform-toggle-icon');
+    if (!explorer || !icon) return;
+
+    const isCollapsed = explorer.classList.toggle('collapsed');
+    
+    // Update icon
+    icon.setAttribute('data-lucide', isCollapsed ? 'chevron-right' : 'chevron-left');
+    lucide.createIcons();
+
+    // Trigger chart resize after transition
+    setTimeout(() => {
+        if (state.waveform.plotter) {
+            state.waveform.plotter.setSize({
+                width: document.getElementById('waveform-chart-container').clientWidth,
+                height: document.getElementById('waveform-chart-container').clientHeight
+            });
+        }
+    }, 310);
 }
 
 function initWaveformViewer() {
@@ -1178,3 +1266,69 @@ async function writeSingleChannel(id) {
         addLog(`Write fail: ${e.message}`, 'error');
     }
 }
+
+window.openQuickWaveform = (id) => {
+    const modal = document.getElementById('modal-quick-waveform');
+    const container = document.getElementById('quick-wave-container');
+    const chanIdSpan = document.getElementById('quick-wave-channel-id');
+    if (!modal || !container) return;
+
+    state.quickWave.channelId = id;
+    state.quickWave.data = [[], []];
+    state.quickWave.active = true;
+    state.quickWave.paused = false;
+    
+    const btnPause = document.getElementById('btn-quick-pause');
+    if (btnPause) {
+        btnPause.innerHTML = '<i data-lucide="pause"></i> Pause';
+        lucide.createIcons(btnPause);
+    }
+
+    if (chanIdSpan) chanIdSpan.innerText = id;
+
+    container.innerHTML = '';
+    const opts = {
+        title: "",
+        width: container.clientWidth || 760,
+        height: container.clientHeight || 400,
+        series: [
+            {},
+            { stroke: "#3b82f6", width: 2, label: id }
+        ],
+        axes: [
+            { stroke: "#94a3b8", grid: { stroke: "rgba(255,255,255,0.05)" } },
+            { stroke: "#94a3b8", grid: { stroke: "rgba(255,255,255,0.05)" } }
+        ],
+        cursor: { drag: { x: true, y: true } }
+    };
+
+    state.quickWave.plotter = new uPlot(opts, state.quickWave.data, container);
+    modal.classList.add('active');
+};
+
+window.closeQuickWaveform = () => {
+    state.quickWave.active = false;
+    if (state.quickWave.plotter) {
+        state.quickWave.plotter.destroy();
+        state.quickWave.plotter = null;
+    }
+    closeModal('modal-quick-waveform');
+};
+
+window.toggleQuickWavePause = () => {
+    state.quickWave.paused = !state.quickWave.paused;
+    const btn = document.getElementById('btn-quick-pause');
+    if (btn) {
+        btn.innerHTML = state.quickWave.paused ? '<i data-lucide="play"></i> Resume' : '<i data-lucide="pause"></i> Pause';
+        lucide.createIcons(btn);
+    }
+    addLog(`Quick Waveform ${state.quickWave.paused ? 'Paused' : 'Resumed'}`, 'info');
+};
+
+window.clearQuickWave = () => {
+    state.quickWave.data = [[], []];
+    if (state.quickWave.plotter) {
+        state.quickWave.plotter.setData(state.quickWave.data);
+    }
+    addLog('Quick Waveform Cleared', 'info');
+};

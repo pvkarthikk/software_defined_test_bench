@@ -66,6 +66,11 @@ class BaseDevice(ABC):
         """Writes a value to the specified signal."""
         raise NotImplementedError("Subclasses must implement the write_signal method.")
 
+    @abstractmethod
+    def restart(self) -> None:
+        """Restarts the hardware device."""
+        raise NotImplementedError("Subclasses must implement the restart method.")
+
     def update(self) -> None:
         """Called periodically by the system for background tasks."""
         pass

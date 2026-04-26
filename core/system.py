@@ -94,13 +94,17 @@ class SDTBSystem:
             self.update_task = asyncio.create_task(self._update_loop())
             logger.info(f"Started device update loop (rate: {self.system_config.device_update_rate}ms)")
 
-    def shutdown(self):
+    async def shutdown(self):
         """
         Performs system shutdown: disconnects devices and stops update loop.
         """
         logger.info("Shutting down SDTB System...")
         if self.update_task:
             self.update_task.cancel()
+            try:
+                await self.update_task
+            except asyncio.CancelledError:
+                pass
             self.update_task = None
         self.device_manager.disconnect_all()
 

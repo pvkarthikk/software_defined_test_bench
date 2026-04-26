@@ -75,6 +75,15 @@ class MockDevice(BaseDevice):
 
     def get_signals(self) -> List[SignalDefinition]:
         return self._signals
+
+    def restart(self) -> None:
+        logger.info("MockDevice restarting...")
+        self.disconnect()
+        # Simulated delay
+        import time
+        time.sleep(0.5)
+        self._connected = True
+        logger.info("MockDevice restarted")
     
     def get_signal(self, signal_id: str) -> SignalDefinition:
         for s in self._signals:
