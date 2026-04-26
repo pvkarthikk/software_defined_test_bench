@@ -1,0 +1,9 @@
+{
+    "id": "mock_target",
+    "plugin": "FlashMock",
+    "enabled": true,
+    "connection_params": {
+        "port": "MOCK_PORT",
+        "baudrate": 115200
+    }
+}

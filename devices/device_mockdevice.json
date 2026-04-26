@@ -1,0 +1,9 @@
+{
+  "id": "mock_1",
+  "plugin": "MockDevice",
+  "enabled": true,
+  "connection_params": {
+    "simulated": true
+  },
+  "settings": {}
+}
