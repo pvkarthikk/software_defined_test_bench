@@ -53,10 +53,13 @@ class SDTBSystem:
         
         # Redirect all standard logging to the SSE stream
         from core.stream_manager import SSELogHandler
-        sse_handler = SSELogHandler(self.stream_manager)
-        # Simple format: LEVEL | Module: Message
-        sse_handler.setFormatter(logging.Formatter('%(levelname)s | %(name)s: %(message)s'))
-        logging.getLogger().addHandler(sse_handler)
+        root_logger = logging.getLogger()
+        has_sse_handler = any(isinstance(h, SSELogHandler) for h in root_logger.handlers)
+        
+        if not has_sse_handler:
+            sse_handler = SSELogHandler(self.stream_manager)
+            sse_handler.setFormatter(logging.Formatter('%(levelname)s | %(name)s: %(message)s'))
+            root_logger.addHandler(sse_handler)
         
         # Connect test engine results to log stream
         self.test_engine.on_step_complete = self._handle_test_step_result

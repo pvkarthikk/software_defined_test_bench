@@ -64,11 +64,7 @@ class ChannelManager:
         
         # Apply scaling
         scaled_value = self.get_scaled_value(cfg, raw_value)
-        
-        if self.stream_manager:
-            self.stream_manager.push_channel_update(channel_id, scaled_value)
-            logger.debug(f"Channel READ: {channel_id} = {scaled_value:.2f} {cfg.properties.unit}")
-            
+        logger.debug(f"Channel READ: {channel_id} = {scaled_value:.2f} {cfg.properties.unit}")
         return scaled_value
 
     async def write_channel(self, channel_id: str, value: float):
