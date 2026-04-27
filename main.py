@@ -49,4 +49,5 @@ async def ping():
 if __name__ == "__main__":
     import os
     # Ensure uvicorn uses the right module path if run directly
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    config = sdtb_system.system_config.server
+    uvicorn.run(app, host=config.host, port=config.port)

@@ -96,7 +96,6 @@ class ChannelManager:
         
         # 3. Hardware Write (Device plugin performs physical signal-level bounds checking)
         # Offload to thread to avoid blocking event loop
-        import asyncio
         await asyncio.to_thread(device.write_signal, cfg.signal_id, raw_value)
         
         # 4. Push update to stream subscribers

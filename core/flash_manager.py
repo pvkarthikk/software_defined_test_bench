@@ -117,6 +117,14 @@ class FlashManager:
         
         await asyncio.to_thread(protocol.abort, execution_id)
 
+    async def connect_all(self):
+        """Connects all configured flash targets."""
+        for flash_id in list(self.flash_protocols.keys()):
+            try:
+                await self.connect_target(flash_id)
+            except Exception as e:
+                logger.error(f"Error connecting flash target {flash_id}: {e}")
+
     async def disconnect_all(self):
         """Disconnects all active flash targets."""
         for flash_id in list(self.flash_protocols.keys()):

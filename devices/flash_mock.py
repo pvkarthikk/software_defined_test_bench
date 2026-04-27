@@ -16,6 +16,10 @@ class FlashMock(BaseFlash):
         self._logs: Dict[str, List[str]] = {}
 
     @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    @property
     def vendor(self) -> str:
         return "SDTB"
 

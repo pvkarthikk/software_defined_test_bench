@@ -107,6 +107,9 @@ class TestEngine:
             timestamp=start_time
         )
         self.history.append(result)
+        # Prevent memory leak by limiting history size
+        if len(self.history) > 1000:
+            self.history = self.history[-1000:]
         return result
 
     def _evaluate_assertion(self, actual: float, condition: str, target: float) -> bool:

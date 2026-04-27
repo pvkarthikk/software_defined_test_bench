@@ -113,7 +113,7 @@ async def handle_list_tools() -> list[types.Tool]:
                 },
                 "required": ["writes"],
             },
-        )
+        ),
     ]
 
 @mcp_server.list_resources()
@@ -199,13 +199,11 @@ async def handle_call_tool(
 
         elif name == "connect_system":
             await sdtb_system.device_manager.connect_all()
-            await sdtb_system.flash_manager.connect_all() # Ensure flash is also connected
-            return [types.TextContent(type="text", text="Hardware and Flash connection sequence completed successfully.")]
+            return [types.TextContent(type="text", text="Hardware connection sequence completed successfully.")]
 
         elif name == "disconnect_system":
             await sdtb_system.device_manager.disconnect_all()
-            await sdtb_system.flash_manager.disconnect_all()
-            return [types.TextContent(type="text", text="Hardware and Flash disconnection sequence completed.")]
+            return [types.TextContent(type="text", text="Hardware disconnection sequence completed.")]
 
         elif name == "read_channels":
             ch_ids = arguments.get("channel_ids", [])

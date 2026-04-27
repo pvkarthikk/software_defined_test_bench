@@ -88,7 +88,7 @@ class ArduinoR4SimDevice(BaseDevice):
         if self._connection_params:
             self.connect(self._connection_params)
         else:
-            logger.warn("Cannot restart: No connection parameters stored")
+            logger.warning("Cannot restart: No connection parameters stored")
 
     def read_signal(self, signal_id: str) -> Any:
         if not self._connected:

@@ -1,15 +1,18 @@
 import serial
 import time
 import threading
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ArduinoR4Controller:
     def __init__(self, port, baudrate=115200, timeout=1):
         try:
             self.ser = serial.Serial(port, baudrate, timeout=timeout)
             time.sleep(2)  # Wait for Arduino to reset
-            print(f"Connected to Arduino on {port}")
+            logger.info(f"Connected to Arduino on {port}")
         except Exception as e:
-            print(f"Error connecting to serial port: {e}")
+            logger.error(f"Error connecting to serial port: {e}")
             self.ser = None
 
         self.latest_data = [] # List of values from DATA: stream
@@ -42,7 +45,7 @@ class ArduinoR4Controller:
             
             message = f"{cmd}:{val}\n"
             self.ser.write(message.encode('utf-8'))
-            print(f"Sent command: {message.strip()}")
+            logger.info(f"Sent command: {message.strip()}")
 
     # --- GENERIC CONTROL METHODS ---
     def set_digital_out(self, cmd, state):

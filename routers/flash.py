@@ -63,6 +63,10 @@ async def start_flash(
         # Read the binary data
         data = await file.read()
         
+        # Double check size (especially for chunked uploads where file.size might be None)
+        if len(data) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Firmware binary too large (max 10MB)")
+        
         # Parse params JSON
         try:
             param_dict = json.loads(params)

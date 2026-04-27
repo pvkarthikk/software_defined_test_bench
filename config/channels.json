@@ -32,7 +32,7 @@
     "properties": {
       "unit": "V",
       "min": 0.0,
-      "max": 65535.0,
+      "max": 4095.0,
       "resolution": 1.0,
       "offset": 0.0,
       "value": 0.0
@@ -45,7 +45,7 @@
     "properties": {
       "unit": "psi",
       "min": 0.0,
-      "max": 65535.0,
+      "max": 4095.0,
       "resolution": 1.0,
       "offset": 0.0,
       "value": 0.0
@@ -58,7 +58,7 @@
     "properties": {
       "unit": "%",
       "min": 0.0,
-      "max": 65535.0,
+      "max": 4095.0,
       "resolution": 1.0,
       "offset": 0.0,
       "value": 0.0
@@ -84,7 +84,7 @@
     "properties": {
       "unit": "%",
       "min": 0.0,
-      "max": 65535.0,
+      "max": 4095.0,
       "resolution": 1.0,
       "offset": 0.0,
       "value": 0.0
@@ -93,11 +93,11 @@
   {
     "channel_id": "test",
     "device_id": "arduino_r4_sim",
-    "signal_id": "AO1",
+    "signal_id": "AO5",
     "properties": {
       "unit": "",
       "min": 0.0,
-      "max": 65535.0,
+      "max": 4095.0,
       "resolution": 1.0,
       "offset": 0.0,
       "value": 0.0

@@ -16,6 +16,12 @@ class BaseFlash(ABC):
     
     @property
     @abstractmethod
+    def is_connected(self) -> bool:
+        """Returns True if connected to the target."""
+        pass
+
+    @property
+    @abstractmethod
     def vendor(self) -> str:
         """Returns the protocol/tool vendor name."""
         pass
