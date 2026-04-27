@@ -1,7 +1,7 @@
 [
   {
     "channel_id": "Ignition_Switch",
-    "device_id": "arduino_custom",
+    "device_id": "arduino_r4_sim",
     "signal_id": "DO1",
     "properties": {
       "unit": "",
@@ -14,7 +14,7 @@
   },
   {
     "channel_id": "Engine_RPM_Sensor",
-    "device_id": "arduino_custom",
+    "device_id": "arduino_r4_sim",
     "signal_id": "AO1",
     "properties": {
       "unit": "RPM",
@@ -27,7 +27,7 @@
   },
   {
     "channel_id": "Battery_Voltage",
-    "device_id": "arduino_custom",
+    "device_id": "arduino_r4_sim",
     "signal_id": "AO2",
     "properties": {
       "unit": "V",
@@ -40,7 +40,7 @@
   },
   {
     "channel_id": "Oil_Pressure_Sensor",
-    "device_id": "arduino_custom",
+    "device_id": "arduino_r4_sim",
     "signal_id": "AO3",
     "properties": {
       "unit": "psi",
@@ -53,7 +53,7 @@
   },
   {
     "channel_id": "Accelerator_Pedal",
-    "device_id": "arduino_custom",
+    "device_id": "arduino_r4_sim",
     "signal_id": "AO4",
     "properties": {
       "unit": "%",
@@ -66,8 +66,8 @@
   },
   {
     "channel_id": "Check_Engine_Light",
-    "device_id": "arduino_custom",
-    "signal_id": "DI1",
+    "device_id": "arduino_r4_sim",
+    "signal_id": "IN1",
     "properties": {
       "unit": "",
       "min": 0.0,
@@ -79,8 +79,8 @@
   },
   {
     "channel_id": "Throttle_Valve_CMD",
-    "device_id": "arduino_custom",
-    "signal_id": "PWM_IN",
+    "device_id": "arduino_r4_sim",
+    "signal_id": "IN2",
     "properties": {
       "unit": "%",
       "min": 0.0,
@@ -92,8 +92,8 @@
   },
   {
     "channel_id": "test",
-    "device_id": "arduino_custom",
-    "signal_id": "AI1",
+    "device_id": "arduino_r4_sim",
+    "signal_id": "AO1",
     "properties": {
       "unit": "",
       "min": 0.0,

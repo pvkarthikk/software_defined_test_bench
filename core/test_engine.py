@@ -2,6 +2,7 @@ import json
 import asyncio
 import time
 import logging
+import math
 from typing import List, Optional, Callable
 from models.test import TestStep, WriteStep, WaitStep, AssertStep, TestResult
 from core.channel_manager import ChannelManager
@@ -107,10 +108,10 @@ class TestEngine:
 
     def _evaluate_assertion(self, actual: float, condition: str, target: float) -> bool:
         """
-        Evaluates the assertion logic.
+        Evaluates the assertion logic with floating-point tolerance for equality.
         """
-        if condition == "==": return actual == target
-        if condition == "!=": return actual != target
+        if condition == "==": return math.isclose(actual, target, rel_tol=1e-6, abs_tol=1e-9)
+        if condition == "!=": return not math.isclose(actual, target, rel_tol=1e-6, abs_tol=1e-9)
         if condition == ">":  return actual > target
         if condition == ">=": return actual >= target
         if condition == "<":  return actual < target

@@ -24,6 +24,7 @@ class SDTBSystem:
         # Prevent re-initialization if already initialized
         if hasattr(self, 'initialized') and self.initialized:
             return
+        self.initialized = True
             
         if config_dir is None:
             # Default to current directory if not specified
@@ -61,7 +62,7 @@ class SDTBSystem:
         self.test_engine.on_step_complete = self._handle_test_step_result
         
         self.update_task: Optional[asyncio.Task] = None
-        self.initialized = True
+        self._last_pushed_values: Dict[str, float] = {} # Key: "dev:sig" or "ch:id"
         logger.info("SDTB System Initialized")
 
     async def startup(self):
@@ -148,7 +149,11 @@ class SDTBSystem:
                             # Push raw signal updates to stream
                             signals = device.get_signals()
                             for sig in signals:
-                                self.stream_manager.push_device_signal_update(dev_id, sig.signal_id, sig.value)
+                                cache_key = f"dev:{dev_id}:{sig.signal_id}"
+                                last_val = self._last_pushed_values.get(cache_key)
+                                if last_val is None or not math.isclose(last_val, sig.value, rel_tol=1e-5):
+                                    self.stream_manager.push_device_signal_update(dev_id, sig.signal_id, sig.value)
+                                    self._last_pushed_values[cache_key] = sig.value
                                 
                             # Push scaled channel updates to stream
                             for ch in self.channel_manager.get_all_channels():
@@ -156,7 +161,11 @@ class SDTBSystem:
                                     for sig in signals:
                                         if sig.signal_id == ch.signal_id:
                                             scaled_value = self.channel_manager.get_scaled_value(ch, sig.value)
-                                            self.stream_manager.push_channel_update(ch.channel_id, scaled_value)
+                                            cache_key = f"ch:{ch.channel_id}"
+                                            last_val = self._last_pushed_values.get(cache_key)
+                                            if last_val is None or not math.isclose(last_val, scaled_value, rel_tol=1e-5):
+                                                self.stream_manager.push_channel_update(ch.channel_id, scaled_value)
+                                                self._last_pushed_values[cache_key] = scaled_value
                                             break
                         except Exception as e:
                             logger.error(f"Error updating device {dev_id}: {e}")

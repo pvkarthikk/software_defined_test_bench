@@ -91,6 +91,8 @@ class ArduinoR4SimDevice(BaseDevice):
             logger.warn("Cannot restart: No connection parameters stored")
 
     def read_signal(self, signal_id: str) -> Any:
+        if not self._connected:
+            raise RuntimeError("Device not connected")
         if signal_id not in self._signal_map:
             raise ValueError(f"Signal {signal_id} not found")
         return self._signal_map[signal_id].value
