@@ -78,7 +78,7 @@ class TestEngine:
         try:
             if isinstance(step, WriteStep):
                 logger.info(f"Step {index}: Writing {step.value} to {step.channel}")
-                self.channel_manager.write_channel(step.channel, step.value)
+                await self.channel_manager.write_channel(step.channel, step.value)
                 
             elif isinstance(step, WaitStep):
                 logger.info(f"Step {index}: Waiting for {step.duration_ms}ms")
@@ -86,7 +86,7 @@ class TestEngine:
                 
             elif isinstance(step, AssertStep):
                 logger.info(f"Step {index}: Asserting {step.channel} {step.condition} {step.value}")
-                actual_value = self.channel_manager.read_channel(step.channel)
+                actual_value = await self.channel_manager.read_channel(step.channel)
                 
                 if not self._evaluate_assertion(actual_value, step.condition, step.value):
                     status = "fail"

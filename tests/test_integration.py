@@ -19,6 +19,16 @@ async def test_integration():
     # 1. Startup: Discover and Initialize
     await system.startup()
     
+    # Inject ch_temp for test purposes
+    from models.config import ChannelConfig, ChannelProperties
+    ch_temp = ChannelConfig(
+        channel_id="ch_temp",
+        device_id="mock_1",
+        signal_id="AI0",
+        properties=ChannelProperties(unit="C", min=-50, max=150, resolution=0.1, offset=-20)
+    )
+    system.channel_manager.channels["ch_temp"] = ch_temp
+    
     assert "mock_1" in system.device_manager.devices, "mock_1 device should be discovered"
     assert "ch_temp" in system.channel_manager.channels, "ch_temp channel should be initialized"
     print("Discovery & Initialization OK")

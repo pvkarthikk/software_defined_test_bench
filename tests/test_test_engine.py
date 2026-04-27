@@ -14,14 +14,24 @@ async def test_test_engine():
     print("Testing Test Engine...")
     config_dir = os.path.join(source_path, "config")
     system = SDTBSystem(config_dir)
-    system.startup()
-    system.device_manager.connect_all()
+    await system.startup()
+    await system.device_manager.connect_all()
+
+    # 3. Inject a valid channel for testing
+    from models.config import ChannelConfig, ChannelProperties
+    test_ch = ChannelConfig(
+        channel_id="test_channel",
+        device_id="mock_1",
+        signal_id="DO0",
+        properties=ChannelProperties(unit="V", min=0, max=100, resolution=1, offset=0)
+    )
+    system.channel_manager.channels["test_channel"] = test_ch
 
     # Create a simple JSONL script
     script = (
-        '{"action": "write", "channel": "ch_temp", "value": 25.0}\n'
+        '{"action": "write", "channel": "test_channel", "value": 25.0}\n'
         '{"action": "wait", "duration_ms": 500}\n'
-        '{"action": "assert", "channel": "ch_temp", "condition": "==", "value": 25.0}\n'
+        '{"action": "assert", "channel": "test_channel", "condition": "==", "value": 25.0}\n'
     )
 
     print("Running script...")
