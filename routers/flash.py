@@ -17,7 +17,7 @@ async def get_flash_protocols():
     """List all discovered flash protocols and their configurations."""
     try:
         configs = sdtb_system.flash_manager.get_all_configs()
-        return [cfg.dict() for cfg in configs.values()]
+        return [cfg.model_dump() for cfg in configs.values()]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -116,3 +116,11 @@ class FlashManager:
             raise ValueError(f"Flash protocol {flash_id} not found")
         
         await asyncio.to_thread(protocol.abort, execution_id)
+
+    async def disconnect_all(self):
+        """Disconnects all active flash targets."""
+        for flash_id in list(self.flash_protocols.keys()):
+            try:
+                await self.disconnect_target(flash_id)
+            except Exception as e:
+                logger.error(f"Error disconnecting flash target {flash_id}: {e}")

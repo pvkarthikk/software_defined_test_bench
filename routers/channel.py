@@ -78,4 +78,6 @@ async def get_channel_status(channel_id: str):
     info = system.channel_manager.get_channel_info(channel_id)
     if not info:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
-    return {"status": "operational"} # Simplified
+    device = system.device_manager.get_device(info.device_id)
+    is_operational = device.is_connected if device else False
+    return {"status": "operational" if is_operational else "offline"}

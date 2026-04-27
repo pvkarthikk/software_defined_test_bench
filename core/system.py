@@ -110,6 +110,7 @@ class SDTBSystem:
                 pass
             self.update_task = None
         await self.device_manager.disconnect_all()
+        await self.flash_manager.disconnect_all()
 
     async def restart(self):
         """
