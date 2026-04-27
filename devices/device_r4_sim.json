@@ -1,6 +1,6 @@
 {
-  "id": "arduino_custom",
-  "plugin": "ArduinoCustomFirmwareDevice",
+  "id": "arduino_r4_sim",
+  "plugin": "ArduinoR4SimDevice",
   "enabled": true,
   "connection_params": {
     "port": "COM3",

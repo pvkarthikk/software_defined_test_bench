@@ -1,11 +1,11 @@
 import logging
 from typing import List, Any, Dict
 from core.base_device import BaseDevice, SignalDefinition
-from devices.arduino_custom_firmware_driver import ArduinoR4Controller
+from devices.sim_r4_driver import ArduinoR4Controller
 
 logger = logging.getLogger(__name__)
 
-class ArduinoCustomFirmwareDevice(BaseDevice):
+class ArduinoR4SimDevice(BaseDevice):
     def __init__(self):
         self._controller: ArduinoR4Controller = None
         self._connected = False
@@ -41,22 +41,16 @@ class ArduinoCustomFirmwareDevice(BaseDevice):
 
     def _create_signals(self):
         self._signals = [
-            # Outputs
-            SignalDefinition("DO1", "Digital Out 1", "digital", "output", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "D2 Output"),
-            SignalDefinition("DO2", "Digital Out 2", "digital", "output", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "D12 Output"),
-            SignalDefinition("DO3", "Digital Out 3", "digital", "output", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "D13 Output"),
-            SignalDefinition("AO1", "Analog Out 1 (DAC)", "analog", "output", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "A0 True DAC"),
-            SignalDefinition("AO2", "Analog Out 2", "analog", "output", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "D3 PWM-Analog"),
-            SignalDefinition("AO3", "Analog Out 3", "analog", "output", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "D6 PWM-Analog"),
-            SignalDefinition("AO4", "Analog Out 4", "analog", "output", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "D9 PWM-Analog"),
-            SignalDefinition("PWMO", "PWM Output", "pwm", "output", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "D10 PWM Output"),
+            # Generic Outputs (Mapped to Simulator Controls)
+            SignalDefinition("DO1", "Digital Output 1", "digital", "output", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "Simulator: Ignition Switch"),
+            SignalDefinition("AO1", "Analog Output 1", "analog", "output", 1.0, "V", 0.0, 0.0, 4095.0, 0.0, "Simulator: Engine RPM (DAC)"),
+            SignalDefinition("AO2", "Analog Output 2", "analog", "output", 1.0, "%", 0.0, 0.0, 4095.0, 0.0, "Simulator: Pedal Position (PWM)"),
+            SignalDefinition("AO3", "Analog Output 3", "analog", "output", 1.0, "%", 0.0, 0.0, 4095.0, 0.0, "Simulator: Battery Voltage (PWM)"),
+            SignalDefinition("AO4", "Analog Output 4", "analog", "output", 1.0, "%", 0.0, 0.0, 4095.0, 0.0, "Simulator: Oil Pressure (PWM)"),
             
-            # Inputs
-            SignalDefinition("DI1", "Digital In 1", "digital", "input", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "D7 Input"),
-            SignalDefinition("DI2", "Digital In 2", "digital", "input", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "D11 Input"),
-            SignalDefinition("AI1", "Analog In 1", "analog", "input", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "A1 Input"),
-            SignalDefinition("AI2", "Analog In 2", "analog", "input", 1.0, "raw", 0.0, 0.0, 4095.0, 0.0, "A2 Input"),
-            SignalDefinition("PWM_IN", "PWM Input", "pwm", "input", 1.0, "us", 0.0, 0.0, 20000.0, 0.0, "D8 Pulse Width")
+            # Generic Inputs (Mapped to Simulator Monitoring)
+            SignalDefinition("IN1", "Input 1", "digital", "input", 1.0, "bool", 0.0, 0.0, 1.0, 0.0, "Simulator: Check Engine Light"),
+            SignalDefinition("IN2", "Input 2", "pwm", "input", 1.0, "%", 0.0, 0.0, 20000.0, 0.0, "Simulator: Throttle Position")
         ]
         self._signal_map = {s.signal_id: s for s in self._signals}
 
@@ -110,14 +104,12 @@ class ArduinoCustomFirmwareDevice(BaseDevice):
 
         sig = self._signal_map[signal_id]
         logger.info(f"Writing {signal_id} = {value}")
+        
+        # In a generic driver, the signal_id (DO1, AO1, etc.) is the command key
         if signal_id.startswith("DO"):
-            idx = int(signal_id[2:])
-            self._controller.set_digital_out(idx, bool(value))
+            self._controller.set_digital_out(signal_id, bool(value))
         elif signal_id.startswith("AO"):
-            idx = int(signal_id[2:])
-            self._controller.set_analog_out(idx, int(value))
-        elif signal_id == "PWMO":
-            self._controller.set_analog_out(5, int(value))
+            self._controller.set_analog_out(signal_id, int(value))
         
         sig.value = value
 
@@ -125,9 +117,13 @@ class ArduinoCustomFirmwareDevice(BaseDevice):
         if not self._connected or not self._controller:
             return
 
-        # Fetch latest data from background thread
-        data = self._controller.get_inputs()
+        # Fetch latest data from background thread (list of values)
+        data_list = self._controller.get_latest_data()
         
-        for key, val in data.items():
-            if key in self._signal_map:
-                self._signal_map[key].value = float(val)
+        # Map indexed data to generic input signals
+        # sim.ino sends: [VAL1 (CEL), VAL2 (THROTTLE)]
+        if len(data_list) >= 2:
+            if "IN1" in self._signal_map:
+                self._signal_map["IN1"].value = float(data_list[0])
+            if "IN2" in self._signal_map:
+                self._signal_map["IN2"].value = float(data_list[1])
