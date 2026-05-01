@@ -1,4 +1,4 @@
-from core.base_device import BaseDevice, SignalDefinition
+from core.base_device import BaseDevice, SignalDefinition, SignalAnalog, SignalPWM
 from typing import List, Any, Dict, Optional
 import logging
 import random
@@ -18,6 +18,11 @@ class EngineMock:
         self._engine_speed_rpm = 0 # 0 - 5000 rpm
         self._idle_rpm = 800
         self._max_rpm = 5000
+        
+        # New non-linear sensor simulations
+        self._temperature_c = 20.0  # Starts at 20C
+        self._temperature_raw = 2500
+        self._map_raw = 500
     
     @property
     def throttle_pwm(self) -> int:
@@ -25,12 +30,21 @@ class EngineMock:
 
     @throttle_pwm.setter
     def throttle_pwm(self, value: int):
-        self._throttle_pwm = max(0, min(255, value))
-        self._throttle_percent = self._throttle_pwm / 255.0 * 100.0
+        # 16-bit PWM where 32768 = 100% (0.00305 resolution)
+        self._throttle_pwm = max(0, min(32768, value))
+        self._throttle_percent = self._throttle_pwm * 0.00305
 
     @property
     def engine_speed(self) -> int:
         return self._engine_speed
+
+    @property
+    def temperature_raw(self) -> int:
+        return self._temperature_raw
+
+    @property
+    def map_raw(self) -> int:
+        return self._map_raw
 
     def update(self):
         # calculate engine rpm based on the throttle percent
@@ -43,10 +57,46 @@ class EngineMock:
         # Clamp RPM to physical limits
         self._engine_speed_rpm = max(0, min(self._max_rpm + 500, self._engine_speed_rpm))
         
-        # convert engine rpm to the engine speed (0-4095 range for 0-5000 RPM)
-        # We allow it to go slightly above 4095 if RPM exceeds 5000 due to momentum/noise
-        raw_val = self._engine_speed_rpm * 4095.0 / 5000.0
+        # convert engine rpm to 12-bit ADC counts (0-5V range where 4095 = 5000 RPM)
+        raw_val = (self._engine_speed_rpm / 5000.0) * 4095.0
         self._engine_speed = max(0, min(4095, round(raw_val)))
+
+        # ----------------------------------------------------
+        # Simulate Coolant Temperature (Warms up as engine runs)
+        # ----------------------------------------------------
+        if self._engine_speed_rpm > 1000:
+            self._temperature_c += (90.0 - self._temperature_c) * 0.05
+        else:
+            self._temperature_c += (90.0 - self._temperature_c) * 0.01
+
+        # NTC Inverse relation mapping to 12-bit ADC:
+        if self._temperature_c <= -40: self._temperature_raw = 4000
+        elif self._temperature_c <= 20: 
+            self._temperature_raw = 4000 - ((self._temperature_c - -40) / 60.0) * 1500
+        elif self._temperature_c <= 90:
+            self._temperature_raw = 2500 - ((self._temperature_c - 20) / 70.0) * 1700
+        elif self._temperature_c <= 150:
+            self._temperature_raw = 800 - ((self._temperature_c - 90) / 60.0) * 700
+        else:
+            self._temperature_raw = 100
+        self._temperature_raw = max(0, min(4095, round(self._temperature_raw)))
+
+        # ----------------------------------------------------
+        # Simulate MAP Sensor (Manifold Absolute Pressure)
+        # ----------------------------------------------------
+        # Higher throttle = less vacuum = higher pressure
+        pressure_kpa = 30.0 + (self._throttle_percent * 0.7) - ((self._engine_speed_rpm - 800) * 0.005)
+        pressure_kpa = max(10.0, min(105.0, pressure_kpa))
+        
+        # Sensor curve: P(kPa) = 10.0 + 0.015*raw + 0.000002*(raw^2)
+        import math
+        a, b, c = 0.000002, 0.015, 10.0 - pressure_kpa
+        discriminant = b**2 - 4*a*c
+        if discriminant >= 0:
+            r = (-b + math.sqrt(discriminant)) / (2*a)
+            self._map_raw = max(0, min(4095, round(r)))
+        else:
+            self._map_raw = 0
 
 class MockDevice(BaseDevice):
     def __init__(self):
@@ -54,26 +104,30 @@ class MockDevice(BaseDevice):
         self._connected = False
         self._enabled = True
         self._signals = [
-            SignalDefinition(
+            SignalAnalog(
                 signal_id="J1_01",
-                name="Engine Speed Feedback", 
-                value=0, 
+                name="Engine Speed Feedback",
                 direction="input",
-                type="uint16", 
-                min=0, 
-                max=4095, 
-                resolution=1, 
-                unit="mV"),
-            SignalDefinition(
+                description="12-bit analog tachometer feedback (0-5V = 0-5000 RPM)."
+            ),
+            SignalPWM(
                 signal_id="J1_02",
                 name="Throttle Command",
                 direction="output",
-                value=0, 
-                type="uint8", 
-                min=0, 
-                max=255, 
-                resolution=1, 
-                unit="PWM"),
+                description="16-bit PWM output to throttle actuator. J1 pin 02."
+            ),
+            SignalAnalog(
+                signal_id="J1_03",
+                name="Coolant Temperature ADC",
+                direction="input",
+                description="12-bit ADC reading from NTC thermistor. Scaled by LUT channel."
+            ),
+            SignalAnalog(
+                signal_id="J1_04",
+                name="MAP Sensor ADC",
+                direction="input",
+                description="12-bit ADC for MAP sensor. Scaled by Polynomial channel."
+            ),
         ]
 
     @property
@@ -151,6 +205,8 @@ class MockDevice(BaseDevice):
         
         # 3. Push feedback to system
         self.get_signal("J1_01").value = self._engine.engine_speed
+        self.get_signal("J1_03").value = self._engine.temperature_raw
+        self.get_signal("J1_04").value = self._engine.map_raw
         
         
     def inject_fault(self, signal_id: str, fault_id: str) -> None:

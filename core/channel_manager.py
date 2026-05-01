@@ -3,8 +3,10 @@ import asyncio
 import math
 from typing import Dict, List, Any, Optional
 from core.device_manager import DeviceManager
-from models.config import ChannelConfig
+from core.signal_registry import SignalRegistry
+from models.config import ChannelConfig, LinearConversion, PolynomialConversion, LutConversion
 from core.stream_manager import StreamManager
+from core.converters import Converter, LinearConverter, PolynomialConverter, LutConverter
 
 logger = logging.getLogger(__name__)
 
@@ -13,39 +15,108 @@ class ChannelManager:
         self.device_manager = device_manager
         self.stream_manager = stream_manager
         self.channels: Dict[str, ChannelConfig] = {}
+        self.converters: Dict[str, Converter] = {}
 
     def initialize_channels(self, channel_configs: List[ChannelConfig]):
         """
         Loads channel configurations and validates their mappings to devices and signals.
         """
         self.channels = {cfg.channel_id: cfg for cfg in channel_configs}
+        self.converters = {}
+        
+        for ch_id, cfg in self.channels.items():
+            conv_cfg = cfg.properties.conversion
+            if isinstance(conv_cfg, LinearConversion):
+                self.converters[ch_id] = LinearConverter(conv_cfg.resolution, conv_cfg.offset)
+            elif isinstance(conv_cfg, PolynomialConversion):
+                # Use a wide default range for raw bounds; device plugin clamps it physically
+                self.converters[ch_id] = PolynomialConverter(conv_cfg.coefficients, -1e6, 1e6)
+            elif isinstance(conv_cfg, LutConversion):
+                self.converters[ch_id] = LutConverter(conv_cfg.table)
+
         self.validate_mappings()
         logger.info(f"Initialized {len(self.channels)} channels.")
 
     def validate_mappings(self):
         """
-        Verifies that all channels map to existing devices and signals.
+        Verifies that all channels map to existing devices and signals, and
+        cross-validates signal definitions and channel properties against the
+        signal type registry (``config/signal_types.json``).
+
+        All registry mismatches are reported as warnings — they do not prevent
+        startup but indicate potential misconfiguration.
         """
+        registry = SignalRegistry()
+
         for ch_id, cfg in self.channels.items():
             device = self.device_manager.get_device(cfg.device_id)
             if not device:
                 logger.error(f"Channel '{ch_id}' maps to unknown device '{cfg.device_id}'")
                 continue
-            
+
             try:
                 signals = device.get_signals()
-                signal_ids = [s.signal_id for s in signals]
-                if cfg.signal_id not in signal_ids:
-                    logger.error(f"Channel '{ch_id}' maps to unknown signal '{cfg.signal_id}' on device '{cfg.device_id}'")
+                signal_map = {s.signal_id: s for s in signals}
+
+                if cfg.signal_id not in signal_map:
+                    logger.error(
+                        f"Channel '{ch_id}' maps to unknown signal '{cfg.signal_id}' "
+                        f"on device '{cfg.device_id}'"
+                    )
+                    continue
+
+                # --- Validate signal definition against the registry ---
+                signal = signal_map[cfg.signal_id]
+                sig_warnings = registry.validate_signal(signal)
+                for w in sig_warnings:
+                    logger.warning(f"[SignalRegistry] Channel '{ch_id}' / Signal '{cfg.signal_id}': {w}")
+
+                # --- Validate channel properties against the registry ---
+                ch_sig_type = cfg.properties.signal_type
+                if ch_sig_type:
+                    typedef = registry.get(ch_sig_type)
+                    if typedef is None:
+                        logger.warning(
+                            f"[SignalRegistry] Channel '{ch_id}' references unknown "
+                            f"signal_type '{ch_sig_type}' in its properties."
+                        )
+                    else:
+                        if typedef.unit and cfg.properties.unit and cfg.properties.unit != typedef.unit:
+                            logger.warning(
+                                f"[SignalRegistry] Channel '{ch_id}': unit '{cfg.properties.unit}' "
+                                f"does not match registry unit '{typedef.unit}' for type '{ch_sig_type}'."
+                            )
+                        if cfg.properties.min < typedef.min_physical:
+                            logger.warning(
+                                f"[SignalRegistry] Channel '{ch_id}': min {cfg.properties.min} is below "
+                                f"registry min_physical {typedef.min_physical} for type '{ch_sig_type}'."
+                            )
+                        if cfg.properties.max > typedef.max_physical:
+                            logger.warning(
+                                f"[SignalRegistry] Channel '{ch_id}': max {cfg.properties.max} exceeds "
+                                f"registry max_physical {typedef.max_physical} for type '{ch_sig_type}'."
+                            )
+
             except Exception as e:
                 logger.warning(f"Could not verify signals for device '{cfg.device_id}': {e}")
 
+    def _get_converter(self, channel_id: str, cfg: ChannelConfig) -> Converter:
+        if channel_id not in self.converters:
+            conv_cfg = cfg.properties.conversion
+            if isinstance(conv_cfg, LinearConversion):
+                self.converters[channel_id] = LinearConverter(conv_cfg.resolution, conv_cfg.offset)
+            elif isinstance(conv_cfg, PolynomialConversion):
+                self.converters[channel_id] = PolynomialConverter(conv_cfg.coefficients, -1e6, 1e6)
+            elif isinstance(conv_cfg, LutConversion):
+                self.converters[channel_id] = LutConverter(conv_cfg.table)
+        return self.converters[channel_id]
+
     def get_scaled_value(self, cfg: ChannelConfig, raw_value: float) -> float:
         """
-        Applies scaling (Raw -> Value).
-        Equation: Value = (Raw * Resolution) + Offset
+        Applies scaling (Raw -> Value) using the channel's configured converter.
         """
-        return (raw_value * cfg.properties.resolution) + cfg.properties.offset
+        converter = self._get_converter(cfg.channel_id, cfg)
+        return converter.to_physical(raw_value)
 
     async def read_channel(self, channel_id: str) -> Any:
         """
@@ -89,10 +160,8 @@ class ChannelManager:
             raise RuntimeError(f"Device '{cfg.device_id}' for channel '{channel_id}' is not connected")
 
         # 2. Scaling to Raw value
-        if cfg.properties.resolution == 0:
-            raw_value = value - cfg.properties.offset
-        else:
-            raw_value = (value - cfg.properties.offset) / cfg.properties.resolution
+        converter = self._get_converter(channel_id, cfg)
+        raw_value = converter.to_raw(value)
         
         # 3. Hardware Write (Device plugin performs physical signal-level bounds checking)
         # Offload to thread to avoid blocking event loop

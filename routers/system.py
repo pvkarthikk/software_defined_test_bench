@@ -129,6 +129,14 @@ async def stream_logs():
     Server-Sent Events (SSE) stream for real-time system logs and test progress.
     """
     return EventSourceResponse(system.stream_manager.subscribe_logs())
+
+@router.get("/stream")
+async def stream_all():
+    """
+    Unified Server-Sent Events (SSE) stream multiplexing logs, channels, and device signals.
+    """
+    return EventSourceResponse(system.stream_manager.subscribe_all())
+
 @router.post("/fault/clear")
 async def clear_all_faults():
     """

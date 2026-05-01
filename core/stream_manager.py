@@ -27,6 +27,9 @@ class StreamManager:
         
         # Dict mapping "device_id:signal_id" to list of subscriber queues
         self.device_queues: Dict[str, List[asyncio.Queue]] = {}
+        
+        # List of queues for unified global stream (multiplexing)
+        self.global_queues: List[asyncio.Queue] = []
 
     async def subscribe_logs(self) -> AsyncGenerator[Dict[str, str], None]:
         """
@@ -40,6 +43,19 @@ class StreamManager:
                 yield {"data": message}
         finally:
             self.log_queues.remove(queue)
+
+    async def subscribe_all(self) -> AsyncGenerator[Dict[str, str], None]:
+        """
+        Subscribes to all events multiplexed into a single stream.
+        """
+        queue = asyncio.Queue()
+        self.global_queues.append(queue)
+        try:
+            while True:
+                data = await queue.get()
+                yield {"data": json.dumps(data)}
+        finally:
+            self.global_queues.remove(queue)
 
     async def subscribe_channel(self, channel_id: str) -> AsyncGenerator[Dict[str, str], None]:
         """
@@ -83,6 +99,14 @@ class StreamManager:
                 queue.put_nowait(message)
             except asyncio.QueueFull:
                 logger.warning("Global log queue is full, dropping message.")
+                
+        # Also push to unified stream
+        global_msg = {"type": "log", "message": message}
+        for queue in self.global_queues:
+            try:
+                queue.put_nowait(global_msg)
+            except asyncio.QueueFull:
+                pass
 
     def push_channel_update(self, channel_id: str, value: Any):
         """
@@ -99,6 +123,19 @@ class StreamManager:
                     queue.put_nowait(update)
                 except asyncio.QueueFull:
                     logger.warning(f"Channel queue for '{channel_id}' is full, dropping update.")
+                    
+        # Also push to unified stream
+        global_update = {
+            "type": "channel",
+            "channel_id": channel_id,
+            "value": value,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        for queue in self.global_queues:
+            try:
+                queue.put_nowait(global_update)
+            except asyncio.QueueFull:
+                pass
 
     def push_device_signal_update(self, device_id: str, signal_id: str, value: Any):
         """
@@ -117,3 +154,17 @@ class StreamManager:
                     queue.put_nowait(update)
                 except asyncio.QueueFull:
                     logger.warning(f"Device signal queue for '{key}' is full, dropping update.")
+                    
+        # Also push to unified stream
+        global_update = {
+            "type": "device_signal",
+            "device_id": device_id,
+            "signal_id": signal_id,
+            "value": value,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        for queue in self.global_queues:
+            try:
+                queue.put_nowait(global_update)
+            except asyncio.QueueFull:
+                pass

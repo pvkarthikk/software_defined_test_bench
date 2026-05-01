@@ -721,71 +721,79 @@ window.removeTestStep = (index) => {
 };
 
 function setupSSE() {
-    const s = new EventSource('/system/logs/stream');
-    s.onmessage = (e) => addLog(e.data, 'info');
-    state.sse.logs = s;
-}
-
-function subscribeToChannel(id) {
-    if (state.sse.channels[id]) return;
-    const s = new EventSource(`/channel/${id}/stream`);
-    state.sse.channels[id] = s;
+    if (state.sse.global) return;
+    const s = new EventSource('/system/stream');
     s.onmessage = (e) => {
-        const val = Number(JSON.parse(e.data).value);
-        state.uiConfig.widgets.forEach(w => { if (w.channel === id) updateWidgetValue(w, val); });
-
-        // Update oscilloscope chart data
-        if (state.oscilloscope.history[id] && state.oscilloscope.history[id].enabled && !state.oscilloscope.paused) {
-            state.oscilloscope.history[id].data.push({ t: Date.now(), v: val });
-            if (state.oscilloscope.history[id].data.length > 1000) state.oscilloscope.history[id].data.shift();
-        }
-
-        // Update quick oscilloscope
-        if (state.quickWave.active && state.quickWave.plotter && state.quickWave.channelId === id && !state.quickWave.paused) {
-            const now = Date.now() / 1000;
-            state.quickWave.data[0].push(now);
-            state.quickWave.data[1].push(val);
-            if (state.quickWave.data[0].length > 500) {
-                state.quickWave.data[0].shift();
-                state.quickWave.data[1].shift();
+        try {
+            const data = JSON.parse(e.data);
+            if (data.type === 'log') {
+                addLog(data.message, 'info');
+            } else if (data.type === 'channel') {
+                handleChannelUpdate(data.channel_id, data.value);
+            } else if (data.type === 'device_signal') {
+                handleDeviceSignalUpdate(data.device_id, data.signal_id, data.value);
             }
-            state.quickWave.plotter.setData(state.quickWave.data);
-        }
-
-        // Update live value in oscilloscope config bar
-        const waveValEl = document.getElementById(`wave-val-${id}`);
-        if (waveValEl) waveValEl.innerText = val.toFixed(2);
-
-        // Update live value in channel mapper table
-        const tableInput = document.getElementById(`read-${id}`);
-        if (tableInput && document.activeElement !== tableInput) {
-            tableInput.value = val.toFixed(2);
+        } catch (err) {
+            // Legacy format fallback for global logs
+            addLog(e.data, 'info');
         }
     };
+    state.sse.global = s;
 }
 
-function subscribeToDeviceSignal(devId, sigId) {
+function handleChannelUpdate(id, val) {
+    val = Number(val);
+    state.uiConfig.widgets.forEach(w => { if (w.channel === id) updateWidgetValue(w, val); });
+
+    // Update oscilloscope chart data
+    if (state.oscilloscope.history[id] && state.oscilloscope.history[id].enabled && !state.oscilloscope.paused) {
+        state.oscilloscope.history[id].data.push({ t: Date.now(), v: val });
+        if (state.oscilloscope.history[id].data.length > 1000) state.oscilloscope.history[id].data.shift();
+    }
+
+    // Update quick oscilloscope
+    if (state.quickWave.active && state.quickWave.plotter && state.quickWave.channelId === id && !state.quickWave.paused) {
+        const now = Date.now() / 1000;
+        state.quickWave.data[0].push(now);
+        state.quickWave.data[1].push(val);
+        if (state.quickWave.data[0].length > 500) {
+            state.quickWave.data[0].shift();
+            state.quickWave.data[1].shift();
+        }
+        state.quickWave.plotter.setData(state.quickWave.data);
+    }
+
+    // Update live value in oscilloscope config bar
+    const waveValEl = document.getElementById(`wave-val-${id}`);
+    if (waveValEl) waveValEl.innerText = val.toFixed(2);
+
+    // Update live value in channel mapper table
+    const tableInput = document.getElementById(`read-${id}`);
+    if (tableInput && document.activeElement !== tableInput) {
+        tableInput.value = val.toFixed(2);
+    }
+}
+
+function handleDeviceSignalUpdate(devId, sigId, val) {
     const id = `dev:${devId}:${sigId}`;
-    if (state.sse.channels[id]) return;
-    const s = new EventSource(`/device/${devId}/signal/${sigId}/stream`);
-    state.sse.channels[id] = s;
-    s.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        const val = Number(data.value);
-        if (state.oscilloscope.history[id] && state.oscilloscope.history[id].enabled && !state.oscilloscope.paused) {
-            state.oscilloscope.history[id].data.push({ t: Date.now(), v: val });
-            if (state.oscilloscope.history[id].data.length > 1000) state.oscilloscope.history[id].data.shift();
-        }
-        const waveValEl = document.getElementById(`wave-val-${id}`);
-        if (waveValEl) waveValEl.innerText = val.toFixed(2);
+    val = Number(val);
+    if (state.oscilloscope.history[id] && state.oscilloscope.history[id].enabled && !state.oscilloscope.paused) {
+        state.oscilloscope.history[id].data.push({ t: Date.now(), v: val });
+        if (state.oscilloscope.history[id].data.length > 1000) state.oscilloscope.history[id].data.shift();
+    }
+    const waveValEl = document.getElementById(`wave-val-${id}`);
+    if (waveValEl) waveValEl.innerText = val.toFixed(2);
 
-        // Update live value in device explorer
-        const explorerInput = document.getElementById(`sig-input-${devId}-${sigId}`);
-        if (explorerInput && document.activeElement !== explorerInput) {
-            explorerInput.value = val.toFixed(2);
-        }
-    };
+    // Update live value in device explorer
+    const explorerInput = document.getElementById(`sig-input-${devId}-${sigId}`);
+    if (explorerInput && document.activeElement !== explorerInput) {
+        explorerInput.value = val.toFixed(2);
+    }
 }
+
+// Legacy stub functions - logic is now handled by multiplexed stream
+function subscribeToChannel(id) {}
+function subscribeToDeviceSignal(devId, sigId) {}
 
 async function refreshDevices() {
     try {
@@ -798,6 +806,11 @@ async function refreshDevices() {
             }
         });
         if (window.updateLogFiltersUI) window.updateLogFiltersUI();
+
+        // Auto-select first device if none is active
+        if (!state.activeDeviceId && state.devices.length > 0) {
+            state.activeDeviceId = state.devices[0].id;
+        }
 
         if (!tabs) return;
         tabs.innerHTML = '';

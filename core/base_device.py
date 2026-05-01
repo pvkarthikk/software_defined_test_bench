@@ -1,20 +1,61 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Any, Optional, Dict
+
+# ---------------------------------------------------------------------------
+# Type aliases (documentation anchors — not runtime-enforced)
+# ---------------------------------------------------------------------------
+
+# Hardware signal category key — must match a key in config/signal_types.json.
+# Examples: "pwm_duty", "battery_voltage", "engine_speed", "binary_switch"
+SignalTypeKey = str
+
+# AUTOSAR implementation type for the raw integer/boolean representation.
+# One of: "uint8", "uint16", "sint16", "sint32", "float32", "boolean"
+ImplType = str
+
+# Physical hardware interface type.
+# One of: "analog", "digital", "pwm", "can"
+HardwareType = str
+
+
+# ---------------------------------------------------------------------------
+# Signal definition — one signal per physical hardware pin/channel
+# ---------------------------------------------------------------------------
 
 @dataclass
 class SignalDefinition:
-    signal_id: str
-    name: str
-    type: str        # e.g., "analog", "digital", "pwm", "can"
-    direction: str   # "input", "output", or "bidirectional"
-    resolution: float
-    unit: str        = ""# Measurement unit
-    offset: float    = 0.0# Calibration offset
-    min: float       = 0.0# Minimum valid range value
-    max: float       = 0.0# Maximum valid range value
-    value: float     = 0.0# Initial or last known value
-    description: str = ""# Physical connection info
+    """
+    Describes a single hardware signal exposed by a device plugin.
+
+    Typed fields (signal_type, impl_type, bit_width, signed) are validated at
+    startup against ``config/signal_types.json`` via ``core.signal_registry``.
+    Validation is non-fatal: mismatches produce log warnings, not exceptions.
+    """
+    # --- Identity ---
+    signal_id: str                   # Unique ID within the device (e.g. "J1_01")
+    name: str                        # Human-readable name
+    type: HardwareType               # Hardware interface: "analog", "digital", "pwm", "can"
+    direction: str                   # "input", "output", or "bidirectional"
+
+    # --- Scaling ---
+    resolution: float                # Physical units per raw count (e.g. 0.25 rpm/count)
+
+    # --- AUTOSAR / Signal Taxonomy ---
+    signal_type: SignalTypeKey = ""  # Registry key in signal_types.json (e.g. "engine_speed")
+    impl_type: ImplType        = ""  # AUTOSAR impl type: "uint8", "uint16", "sint16", etc.
+    bit_width: int             = 0   # Hardware ADC/DAC bit width (e.g. 12, 16)
+    signed: bool               = False  # True if the raw integer is two's-complement signed
+
+    # --- Physical Range & Calibration ---
+    unit: str        = ""            # SI unit string (e.g. "rpm", "V", "degC", "%")
+    offset: float    = 0.0           # Calibration offset applied during scaling
+    min: float       = 0.0           # Minimum valid *physical* value
+    max: float       = 0.0           # Maximum valid *physical* value
+
+    # --- Runtime State ---
+    value: float     = 0.0           # Most recent raw hardware count
+    description: str = ""            # Optional physical connection note
 
 class BaseDevice(ABC):
     @property
@@ -120,3 +161,63 @@ class BaseDeviceException(Exception):
         super().__init__(message)
         self.message = message
         self.code = code
+
+# ---------------------------------------------------------------------------
+# Signal Helper Classes for Plugin Developers
+# ---------------------------------------------------------------------------
+
+class SignalAnalog(SignalDefinition):
+    """Pre-configured SignalDefinition for a standard Analog Voltage input/output."""
+    def __init__(self, signal_id: str, name: str, direction: str, **kwargs):
+        kwargs.setdefault("type", "analog")
+        kwargs.setdefault("signal_type", "sensor_voltage")
+        kwargs.setdefault("impl_type", "uint16")
+        kwargs.setdefault("bit_width", 12)
+        kwargs.setdefault("signed", False)
+        kwargs.setdefault("resolution", 0.001)
+        kwargs.setdefault("unit", "V")
+        kwargs.setdefault("min", 0.0)
+        kwargs.setdefault("max", 5.0)
+        super().__init__(signal_id=signal_id, name=name, direction=direction, **kwargs)
+
+class SignalPWM(SignalDefinition):
+    """Pre-configured SignalDefinition for a PWM duty cycle signal."""
+    def __init__(self, signal_id: str, name: str, direction: str, **kwargs):
+        kwargs.setdefault("type", "pwm")
+        kwargs.setdefault("signal_type", "pwm_duty")
+        kwargs.setdefault("impl_type", "uint16")
+        kwargs.setdefault("bit_width", 16)
+        kwargs.setdefault("signed", False)
+        kwargs.setdefault("resolution", 0.00305)
+        kwargs.setdefault("unit", "%")
+        kwargs.setdefault("min", 0.0)
+        kwargs.setdefault("max", 100.0)
+        super().__init__(signal_id=signal_id, name=name, direction=direction, **kwargs)
+
+class SignalSwitch(SignalDefinition):
+    """Pre-configured SignalDefinition for a binary digital switch."""
+    def __init__(self, signal_id: str, name: str, direction: str, **kwargs):
+        kwargs.setdefault("type", "digital")
+        kwargs.setdefault("signal_type", "binary_switch")
+        kwargs.setdefault("impl_type", "boolean")
+        kwargs.setdefault("bit_width", 1)
+        kwargs.setdefault("signed", False)
+        kwargs.setdefault("resolution", 1.0)
+        kwargs.setdefault("unit", "")
+        kwargs.setdefault("min", 0.0)
+        kwargs.setdefault("max", 1.0)
+        super().__init__(signal_id=signal_id, name=name, direction=direction, **kwargs)
+
+class SignalCurrent(SignalDefinition):
+    """Pre-configured SignalDefinition for a signed current shunt measurement."""
+    def __init__(self, signal_id: str, name: str, direction: str, **kwargs):
+        kwargs.setdefault("type", "analog")
+        kwargs.setdefault("signal_type", "current_shunt")
+        kwargs.setdefault("impl_type", "sint16")
+        kwargs.setdefault("bit_width", 16)
+        kwargs.setdefault("signed", True)
+        kwargs.setdefault("resolution", 0.001)
+        kwargs.setdefault("unit", "A")
+        kwargs.setdefault("min", -32.768)
+        kwargs.setdefault("max", 32.767)
+        super().__init__(signal_id=signal_id, name=name, direction=direction, **kwargs)
