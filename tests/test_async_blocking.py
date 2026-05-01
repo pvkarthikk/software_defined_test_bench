@@ -2,7 +2,7 @@ import sys
 import os
 import asyncio
 import time
-from typing import List, Any
+from typing import List, Any, Optional
 
 # Add source directory to path
 source_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -32,6 +32,11 @@ class SlowMockDevice(BaseDevice):
 
     def connect(self, params: dict): self._connected = True
     def disconnect(self): self._connected = False
+    def restart(self): pass
+
+    def inject_fault(self, signal_id: str, fault_id: str): pass
+    def clear_fault(self, signal_id: Optional[str] = None): pass
+    def get_available_faults(self, signal_id: str): return []
     
     def get_signals(self) -> List[SignalDefinition]:
         return [

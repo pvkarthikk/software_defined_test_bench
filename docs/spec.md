@@ -457,14 +457,16 @@ The system shall validate values against the min/max range defined by the target
 | F01.03 | System shall maintain configuration persistence across restarts using independent config files (system.json, channels.json, and per-device device_<name>.json) | High | Integration Test |
 | F01.04 | System shall provide diagnostic capabilities for troubleshooting | Medium | Integration Test |
 | F01.05 | System shall expose performance metrics (throughput, latency, resource utilization) | Low | Integration Test |
-| F01.06 | System shall support role-based access control for administrative functions | Low | Integration Test |
-| F01.07 | System shall provide audit logging for all configuration and control operations | Low | Integration Test |
-| F01.08 | System shall handle graceful degradation when subsystems fail | Medium | Integration Test |
-| F01.09 | System shall provide connect/disconnect sequencing to ensure proper hardware initialization | High | Integration Test |
-| F01.10 | User shall be able to configure channel-to-device-signal mappings via /system/config/channels endpoint | High | Integration Test |
-| F01.11 | Channel configuration shall persist across system restarts | High | Integration Test |
-| F01.12 | User shall be able to restart the system via /system/restart (auto-disconnect, re-initialize, re-discover) | High | Integration Test |
-| F01.13 | System shall provide live log streaming via SSE for real-time command and event monitoring | Medium | Integration Test |
+| F01.06 | System shall handle graceful degradation when subsystems fail | Medium | Integration Test |
+| F01.07 | System shall provide connect/disconnect sequencing to ensure proper hardware initialization | High | Integration Test |
+| F01.08 | User shall be able to configure channel-to-device-signal mappings via /system/config/channels endpoint | High | Integration Test |
+| F01.09 | Channel configuration shall persist across system restarts | High | Integration Test |
+| F01.10 | System shall expose a `/system/diagnostics` endpoint for internal health checks. | Low (Planned) | Unit Test |
+| F01.11 | System shall expose a `/system/metrics` endpoint for Prometheus-style monitoring. | Low (Planned) | Integration Test |
+| F01.12 | System shall implement Role-Based Access Control (RBAC) for API endpoints. | Medium (Planned) | Security Audit |
+| F01.13 | System shall maintain an audit log of all hardware-mutating operations. | Medium (Planned) | Security Audit |
+| F01.14 | User shall be able to restart the system via /system/restart (auto-disconnect, re-initialize, re-discover) | High | Integration Test |
+| F01.15 | System shall provide live log streaming via SSE for real-time command and event monitoring | Medium | Integration Test |
 
 #### F02: Device Management
 

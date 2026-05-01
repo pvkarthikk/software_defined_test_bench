@@ -91,7 +91,12 @@ class DeviceManager:
         import asyncio
         results = {}
         for device_id, device in self.devices.items():
-            config = self.device_configs[device_id]
+            config = self.device_configs.get(device_id)
+            if not config:
+                logger.warning(f"Device {device_id} has no associated configuration. Attempting connection with defaults.")
+                from models.config import DeviceConfig
+                config = DeviceConfig(id=device_id, plugin="Unknown", enabled=True, connection_params={})
+                
             if not config.enabled:
                 results[device_id] = {"status": "skipped", "message": "Device disabled"}
                 continue

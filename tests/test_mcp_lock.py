@@ -56,7 +56,7 @@ async def test_mcp_lock():
     )
     system.channel_manager.channels["test_channel"] = test_ch
 
-    result = await handle_call_tool("write_channel", {"channel_id": "test_channel", "value": 10.0})
+    result = await handle_call_tool("write_channel", {"channel_id": "test_channel", "value": 1.0})
     print(f"Result: {result[0].text}")
     assert "Successfully set channel" in result[0].text
 

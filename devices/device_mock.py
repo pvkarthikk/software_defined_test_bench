@@ -1,5 +1,5 @@
 from core.base_device import BaseDevice, SignalDefinition
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 import logging
 import random
 
@@ -108,8 +108,28 @@ class MockDevice(BaseDevice):
     def update(self) -> None:
         if not self._connected:
             return
-        #generate 2 new values
         for sig in self._signals:
             if sig.direction == "input":
                 sig.value = generate_mock_value(sig)
+
+    def inject_fault(self, signal_id: str, fault_id: str) -> None:
+        """Mock implementation of fault injection."""
+        logger.info(f"Mock Injecting fault '{fault_id}' on signal '{signal_id}'")
+        pass
+
+    def clear_fault(self, signal_id: Optional[str] = None) -> None:
+        """Mock implementation of clearing faults."""
+        if signal_id:
+            logger.info(f"Mock Clearing fault on signal '{signal_id}'")
+        else:
+            logger.info("Mock Clearing all faults on device")
+        pass
+
+    def get_available_faults(self, signal_id: str) -> List[Dict[str, str]]:
+        """Returns standard fault types for mock."""
+        return [
+            {"id": "SHORT_TO_GROUND", "name": "Short to Ground"},
+            {"id": "SHORT_TO_BATT", "name": "Short to Battery"},
+            {"id": "OPEN_CIRCUIT", "name": "Open Circuit"}
+        ]
     

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 from core.base_device import BaseDevice, SignalDefinition
 from devices.sim_r4_driver import ArduinoR4Controller
 
@@ -130,3 +130,25 @@ class ArduinoR4SimDevice(BaseDevice):
                 self._signal_map["IN1"].value = float(data_list[0])
             if "IN2" in self._signal_map:
                 self._signal_map["IN2"].value = float(data_list[1])
+
+    def inject_fault(self, signal_id: str, fault_id: str) -> None:
+        """Skeletal implementation of fault injection."""
+        logger.info(f"Injecting fault '{fault_id}' on signal '{signal_id}'")
+        # In a real implementation, we would send an LBP command to the Arduino
+        pass
+
+    def clear_fault(self, signal_id: Optional[str] = None) -> None:
+        """Skeletal implementation of clearing faults."""
+        if signal_id:
+            logger.info(f"Clearing fault on signal '{signal_id}'")
+        else:
+            logger.info("Clearing all faults on device")
+        pass
+
+    def get_available_faults(self, signal_id: str) -> List[Dict[str, str]]:
+        """Returns standard fault types for simulation."""
+        return [
+            {"id": "SHORT_TO_GROUND", "name": "Short to Ground"},
+            {"id": "SHORT_TO_BATT", "name": "Short to Battery"},
+            {"id": "OPEN_CIRCUIT", "name": "Open Circuit"}
+        ]

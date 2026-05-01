@@ -7,11 +7,11 @@ The Software Defined Test Bench (SDTB) exposes a REST API built with FastAPI. Al
 ### GET `/system/status`
 Returns the current operational status of the SDTB system.
 
-### POST `/system/startup`
-Initiates the system startup sequence (plugin discovery and channel mapping).
+### POST `/system/connect`
+Initiates the system connection sequence (discovery and hardware mapping).
 
-### POST `/system/shutdown`
-Safely shuts down the system and disconnects all hardware.
+### POST `/system/disconnect`
+Safely disconnects all hardware and stops background loops.
 
 ### POST `/system/restart`
 Performs a full system restart.
@@ -31,7 +31,7 @@ Retrieves detailed information about a specific device.
 
 ### POST `/device/{device_id}/toggle`
 Enable or disable a specific device.
-- **Body**: `{"enabled": boolean}`
+- **Body**: `{"enabled": boolean}` (JSON)
 
 ### GET `/device/{device_id}/signal`
 Lists all raw hardware signals exposed by the device.
@@ -50,7 +50,7 @@ Reads the scaled value of a channel.
 
 ### PUT `/channel/{channel_id}`
 Writes a scaled value to a channel.
-- **Query Param**: `value: float`
+- **Body**: `{"value": float}`
 
 ### GET `/channel/{channel_id}/stream`
 SSE endpoint for real-time updates of a channel's scaled value.

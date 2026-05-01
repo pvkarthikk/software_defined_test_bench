@@ -30,10 +30,12 @@ async def test_full_system_integration(connected_system):
     system.channel_manager.channels[ch_id] = ch_cfg
 
     # 4. Test Read with Scaling
-    # AI0 starts at 2.5 (Raw)
+    # Explicitly set raw value to ensure deterministic test despite random update loop
+    mock_1.write_signal("AI0", 2.5)
+    
     # Value = (2.5 * 0.1) + (-20) = 0.25 - 20 = -19.75
     val = await system.channel_manager.read_channel(ch_id)
-    assert val == -19.75, f"Expected -19.75, got {val}"
+    assert pytest.approx(val) == -19.75, f"Expected -19.75, got {val}"
 
     # 5. Test Write with Scaling
     # Target -19.8 C

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Any
+from typing import List, Any, Optional, Dict
 
 @dataclass
 class SignalDefinition:
@@ -70,6 +70,24 @@ class BaseDevice(ABC):
     def restart(self) -> None:
         """Restarts the hardware device."""
         raise NotImplementedError("Subclasses must implement the restart method.")
+
+    @abstractmethod
+    def inject_fault(self, signal_id: str, fault_id: str) -> None:
+        """Simulates a hardware fault on a specific signal."""
+        raise NotImplementedError("Subclasses must implement the inject_fault method.")
+
+    @abstractmethod
+    def clear_fault(self, signal_id: Optional[str] = None) -> None:
+        """
+        Clears the active fault on a specific signal.
+        If signal_id is None, clears all faults on the device.
+        """
+        raise NotImplementedError("Subclasses must implement the clear_fault method.")
+
+    @abstractmethod
+    def get_available_faults(self, signal_id: str) -> List[Dict[str, str]]:
+        """Returns a list of supported faults for the specified signal."""
+        raise NotImplementedError("Subclasses must implement the get_available_faults method.")
 
     def update(self) -> None:
         """Called periodically by the system for background tasks."""

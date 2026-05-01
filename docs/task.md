@@ -84,8 +84,8 @@ This document tracks the implementation progress of the Software Defined Test Be
  ---
  
  ## Phase 14: Software Flashing Architecture (F05)
- - [ ] **14.1 BaseFlash Interface & Exception**: Define plugin contract.
- - [ ] **14.2 Flash Plugin Discovery**: Extend loader to scan for `flash_*.py`.
- - [ ] **14.3 Flash Manager**: Implement background lifecycle and target connection management.
- - [ ] **14.4 SSE Log Stream**: Implement `/flash/log` for real-time diagnostics.
- - [ ] **14.5 API Endpoints**: Implement flash control and history endpoints.
+ - [x] **14.1 BaseFlash Interface & Exception**: Define plugin contract.
+ - [x] **14.2 Flash Plugin Discovery**: Extend loader to scan for `flash_*.py`.
+ - [x] **14.3 Flash Manager**: Implement background lifecycle and target connection management.
+ - [x] **14.4 SSE Log Stream**: Implement `/flash/log` for real-time diagnostics.
+ - [x] **14.5 API Endpoints**: Implement flash control and history endpoints.

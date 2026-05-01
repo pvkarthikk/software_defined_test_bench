@@ -128,3 +128,16 @@ async def stream_logs():
     Server-Sent Events (SSE) stream for real-time system logs and test progress.
     """
     return EventSourceResponse(system.stream_manager.subscribe_logs())
+@router.post("/fault/clear")
+async def clear_all_faults():
+    """
+    Global safety mechanism to clear all faults across all devices.
+    """
+    try:
+        devices = system.device_manager.get_all_devices()
+        for device_id, device in devices.items():
+            # BaseDevice now has clear_all_faults or we loop signals
+            await asyncio.to_thread(device.clear_fault, None) # None means all
+        return {"message": "Global fault clear sequence completed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

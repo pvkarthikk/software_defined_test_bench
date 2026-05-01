@@ -4,14 +4,14 @@
 
 | Contradiction | Documentation / Config Says | Implementation / Runtime Reality | Impact |
 | :--- | :--- | :--- | :--- |
-| [ ] **Default port conflict** | `README` says `http://localhost:8000` in `README.md:69`; API docs say default `8000` in `api.md:3`; model default is `8000` in `config.py:20`. | Active config uses `8080` in `system.json:5`, and `main.py:53` runs the configured port. | Users following README may open the wrong URL. |
-| [ ] **System endpoint names conflict** | `api.md:10` documents `/system/startup`; `api.md:13` documents `/system/shutdown`. | Actual routes are `/system/connect`, `/system/disconnect`, and `/system/restart` in `system.py:30`. Runtime probe returned 404 for `/system/startup`. | API clients built from docs fail. |
-| [ ] **Channel write body conflict** | `api.md:53` documents query param `value: float`. | `channel.py:37` requires JSON body. Runtime probe confirmed query style returns 422. | Docs and UI both guide users toward failing requests. |
-| [ ] **Device toggle body conflict** | `api.md:34` says body `{"enabled": boolean}`. | `device.py:73` accepts `enabled` as a query parameter. | Client implementations may send the wrong shape. |
-| [ ] **Flash status conflict** | `task.md:86` marks Phase 14 flash tasks incomplete. | Flash interface, manager, router, and mock exist in `base_flash.py:11`, `flash_manager.py:12`, `flash.py:11`, and `flash_mock.py:10`. | Roadmap understates implemented functionality. |
-| [ ] **Flash upload size conflict** | Design says `>100MB` uploads in `design.md:76`; spec endpoint also says `>100MB` in `spec.md:652`. | Router enforces 10 MB at `flash.py:60` and `flash.py:67`. | Firmware users may plan around the wrong upload limit. |
-| [ ] **Fault injection status conflict** | Spec defines fault endpoints in `spec.md:869` and MCP tools in `spec.md:843`. | No matching routes appear in `device.py`, `system.py`, or `mcp.py`. | Feature is documented as designed but not implemented. |
-| [ ] **Diagnostics/security scope conflict** | Spec lists `/system/diagnostics`, `/system/metrics`, RBAC, and audit logging in `spec.md:446`, `spec.md:447`, `spec.md:460`, and `spec.md:461`. | Actual system router exposes config/connect/restart/log stream only in `system.py:13`. | Requirements overstate production readiness. |
+| [x] **Default port conflict** | `README` says `http://localhost:8000` in `README.md:69`; API docs say default `8000` in `api.md:3`; model default is `8000` in `config.py:20`. | Active config uses `8080` in `system.json:5`, and `main.py:53` runs the configured port. | Users following README may open the wrong URL. |
+| [x] **System endpoint names conflict** | `api.md:10` documents `/system/startup`; `api.md:13` documents `/system/shutdown`. | Actual routes are `/system/connect`, `/system/disconnect`, and `/system/restart` in `system.py:30`. Runtime probe returned 404 for `/system/startup`. | API clients built from docs fail. |
+| [x] **Channel write body conflict** | `api.md:53` documents query param `value: float`. | `channel.py:37` requires JSON body. Runtime probe confirmed query style returns 422. | Docs and UI both guide users toward failing requests. |
+| [x] **Device toggle body conflict** | `api.md:34` says body `{"enabled": boolean}`. | `device.py:73` accepts `enabled` as a query parameter. | Client implementations may send the wrong shape. |
+| [x] **Flash status conflict** | `task.md:86` marks Phase 14 flash tasks incomplete. | Flash interface, manager, router, and mock exist in `base_flash.py:11`, `flash_manager.py:12`, `flash.py:11`, and `flash_mock.py:10`. | Roadmap understates implemented functionality. |
+| [x] **Flash upload size conflict** | Design says `>100MB` uploads in `design.md:76`; spec endpoint also says `>100MB` in `spec.md:652`. | Router enforces 10 MB at `flash.py:60` and `flash.py:67`. | Firmware users may plan around the wrong upload limit. |
+| [x] **Fault injection status conflict** | Spec defines fault endpoints in `spec.md:869` and MCP tools in `spec.md:843`. | No matching routes appear in `device.py`, `system.py`, or `mcp.py`. | Feature is documented as designed but not implemented. |
+| [x] **Diagnostics/security scope conflict** | Spec lists `/system/diagnostics`, `/system/metrics`, RBAC, and audit logging in `spec.md:446`, `spec.md:447`, `spec.md:460`, and `spec.md:461`. | Actual system router exposes config/connect/restart/log stream only in `system.py:13`. | Requirements overstate production readiness. |
 
 ## Gaps
 

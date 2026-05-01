@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body
 import asyncio
 from sse_starlette.sse import EventSourceResponse
+from models.config import DeviceConfig, ChannelConfig
 from pydantic import BaseModel
 from core.system import SDTBSystem
 
@@ -11,6 +12,12 @@ system = SDTBSystem()
 
 class WriteValue(BaseModel):
     value: float
+
+class DeviceToggleRequest(BaseModel):
+    enabled: bool
+
+class FaultInjectionRequest(BaseModel):
+    fault_id: str
 
 @router.get("")
 async def list_devices():
@@ -70,9 +77,9 @@ async def list_device_signals(device_id: str):
         raise HTTPException(status_code=500, detail=f"Error retrieving signals: {e}")
 
 @router.post("/{device_id}/toggle")
-async def toggle_device(device_id: str, enabled: bool):
+async def toggle_device(device_id: str, req: DeviceToggleRequest):
     try:
-        await system.device_manager.toggle_device(device_id, enabled)
+        await system.device_manager.toggle_device(device_id, req.enabled)
         return {"message": f"Device {device_id} is now {'enabled' if enabled else 'disabled'}"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -122,5 +129,50 @@ async def restart_device(device_id: str):
     try:
         await asyncio.to_thread(device.restart)
         return {"message": f"Device {device_id} restart initiated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{device_id}/signal/{signal_id}/fault")
+async def get_signal_faults(device_id: str, signal_id: str):
+    """
+    Retrieves a list of available faults for the signal.
+    """
+    device = system.device_manager.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
+    
+    try:
+        # BaseDevice now has get_available_faults
+        return device.get_available_faults(signal_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{device_id}/signal/{signal_id}/fault")
+async def inject_signal_fault(device_id: str, signal_id: str, req: FaultInjectionRequest):
+    """
+    Triggers a specific fault on the signal.
+    """
+    device = system.device_manager.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
+    
+    try:
+        await asyncio.to_thread(device.inject_fault, signal_id, req.fault_id)
+        return {"message": f"Fault '{req.fault_id}' injected successfully on {signal_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{device_id}/signal/{signal_id}/fault")
+async def clear_signal_fault(device_id: str, signal_id: str):
+    """
+    Clears active fault on the signal.
+    """
+    device = system.device_manager.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
+    
+    try:
+        await asyncio.to_thread(device.clear_fault, signal_id)
+        return {"message": f"Fault cleared successfully on {signal_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
