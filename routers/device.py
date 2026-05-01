@@ -79,7 +79,7 @@ async def list_device_signals(device_id: str):
 @router.post("/{device_id}/toggle")
 async def toggle_device(device_id: str, req: DeviceToggleRequest):
     try:
-        await asyncio.to_thread(system.device_manager.toggle_device, device_id, req.enabled)
+        await system.device_manager.toggle_device(device_id, req.enabled)
         return {"message": f"Device {device_id} {'enabled' if req.enabled else 'disabled'}"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

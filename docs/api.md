@@ -4,6 +4,9 @@ The Software Defined Test Bench (SDTB) exposes a REST API built with FastAPI. Al
 
 ## System Management
 
+### GET `/system`
+Returns overall system health, status, and version information.
+
 ### GET `/system/config`
 Get current system configuration.
 
@@ -22,6 +25,13 @@ Global safety mechanism to clear all faults on all devices.
 ### GET `/system/logs/stream`
 SSE endpoint for real-time system logs.
 
+### GET `/system/config/channels`
+Retrieves channel-to-signal mapping configuration.
+
+### PUT `/system/config/channels`
+Configures channel-to-device-signal mappings.
+- **Body**: List of `ChannelConfig` objects.
+
 ---
 
 ## Device Management
@@ -39,7 +49,7 @@ Enable or disable a specific device.
 ### POST `/device/{device_id}/restart`
 Re-initialize and restart a specific hardware device.
 
-### GET `/device/{device_id}/signals`
+### GET `/device/{device_id}/signal`
 Lists all raw hardware signals exposed by the device.
 
 ### GET `/device/{device_id}/signal/{signal_id}`
@@ -110,6 +120,10 @@ Lists all discovered flash protocols.
 
 ### POST `/flash/connect`
 Connects to a specific flash target.
+- **Query Param**: `flash_id: string`
+
+### POST `/flash/disconnect`
+Disconnects from a specific flash target.
 - **Query Param**: `flash_id: string`
 
 ### POST `/flash`

@@ -56,16 +56,16 @@ async def start_flash(
     Supports multipart/form-data for large binary files.
     """
     try:
-        # Check file size (100MB limit)
-        if file.size and file.size > 100 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Firmware binary too large (max 100MB)")
+        # Check file size (10MB limit)
+        if file.size and file.size > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Firmware binary too large (max 10MB)")
 
         # Read the binary data
         data = await file.read()
         
         # Double check size
-        if len(data) > 100 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Firmware binary too large (max 100MB)")
+        if len(data) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Firmware binary too large (max 10MB)")
         
         # Parse params JSON
         try:

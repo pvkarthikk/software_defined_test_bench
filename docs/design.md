@@ -73,7 +73,7 @@ An asynchronous queue manager running in a background task.
 ### 3.5 Flash Manager
 Manages the lifecycle of target firmware programming.
 - Discovers `BaseFlash` protocol plugins (e.g., UDS, CCP).
-- Manages high-speed file uploads (>100MB) via multipart streams.
+- Manages high-speed file uploads (up to 10MB) via multipart streams.
 - Provides an **SSE Log Stream** (`/flash/log`) for real-time protocol diagnostics during programming.
 - Handles target connection state independent of standard test bench devices.
 

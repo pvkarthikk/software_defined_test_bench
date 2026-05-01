@@ -651,7 +651,7 @@ Each channel shall expose the following properties for proper signal handling:
 |----------|--------|-------------|--------------|
 | `/flash/connect` | POST | Connect to the flash target device/ECU (independent of system connect) | 200 OK, 400 Bad Request, 503 Service Unavailable |
 | `/flash/disconnect` | POST | Disconnect from the flash target device/ECU | 200 OK, 503 Service Unavailable |
-| `/flash` | POST | Initiate software flashing process (supports multipart/form-data for >100MB files) | 202 Accepted, 400 Bad Request, 500 Internal Error |
+| `/flash` | POST | Initiate software flashing process (supports multipart/form-data for ≤10MB files) | 202 Accepted, 400 Bad Request, 500 Internal Error |
 | `/flash/status` | GET | Retrieve current flashing operation status | 200 OK, 404 Not Found |
 | `/flash/log` | GET | Stream live flash operation logs via SSE | 200 OK, 404 Not Found |
 | `/flash/abort` | POST | Abort ongoing flashing operation | 200 OK, 409 Conflict, 404 Not Found |

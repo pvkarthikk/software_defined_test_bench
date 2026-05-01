@@ -13,6 +13,11 @@
 | [x] Medium | **Duplicate generated plugin configs are now present** | `device_arduinor4simdevice.json:1` and `flash_flashmock.json:1` duplicate already configured plugins. | Remove duplicates or make discovery identify plugin references correctly. |
 | [x] Medium | **Full pytest collection still fails** | `test_flash_progress.py:1` imports missing `requests`; `test_arduino_firmata.py:11` imports missing `devices.device_arduino_firmata`. | Either add dependencies/modules, rename scratch scripts away from `test_*.py`, or mark hardware/manual tests explicitly. |
 | [x] Medium | **API docs still omit several implemented endpoints** | Examples: `channel.py:58`, `channel.py:77`, `device.py:89`, `device.py:124`, `system.py:131`, `flash.py:136`. | Expand `api.md` so clients see the real surface. |
+| [x] High | **Unawaited coroutine in `device.py:81`** | `asyncio.to_thread` used for `async def`. Endpoint returns 200 but state never changes. | Remove `to_thread` and await directly. |
+| [x] Low | **Singular/Plural endpoint mismatch** | Doc says `/signals` but code says `/signal`. | Align doc to code. |
+| [x] Low | **Missing endpoints in `api.md`** | `GET /system`, `GET/PUT /system/config/channels`, `POST /flash/disconnect` missing. | Add to `api.md`. |
+| [x] Low | **Missing router-level tests** | No tests cover toggles or global clears via `TestClient`. | Add `tests/test_routers.py`. |
+| [x] Med | **Flash limit contradiction** | `design.md` and `spec.md` say >100MB; implementation/review say 10MB. | Standardize on 10MB. |
 | [x] **Fault injection status conflict** | Spec defines fault endpoints in `spec.md:869` and MCP tools in `spec.md:843`. | No matching routes appear in `device.py`, `system.py`, or `mcp.py`. | Feature is documented as designed but not implemented. |
 | [x] **Diagnostics/security scope conflict** | Spec lists `/system/diagnostics`, `/system/metrics`, RBAC, and audit logging in `spec.md:446`, `spec.md:447`, `spec.md:460`, and `spec.md:461`. | Actual system router exposes config/connect/restart/log stream only in `system.py:13`. | Requirements overstate production readiness. |
 
