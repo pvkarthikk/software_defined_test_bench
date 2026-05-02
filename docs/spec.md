@@ -1,14 +1,13 @@
-
-
 # Software Defined Test Bench - Requirements Document
 
 ## 1. Project Overview
 
 ### 1.1 Project Identification
+
 - **Project Name**: Software Defined Test Bench (SDTB)
 - **Project Type**: Test automation/validation framework
 - **Core Functionality**: A flexible, software-defined approach to test bench automation for hardware validation
-- **Target Users**: 
+- **Target Users**:
   - Test Engineers
   - Hardware Developers
   - QA Teams
@@ -16,9 +15,11 @@
   - System Integrators
 
 ### 1.2 Vision Statement
+
 To provide a unified, programmable interface for hardware validation that abstracts hardware complexity through software-defined interfaces, enabling rapid test development and execution.
 
 ### 1.3 Key Benefits
+
 - Reduced test development time through reusable components
 - Hardware abstraction layer for technology independence
 - Scalable architecture supporting multiple device types
@@ -86,11 +87,11 @@ SDTB supports user-defined devices through an extensible plugin architecture:
 | BaseDeviceException | Exception class for device plugin errors | Built-in |
 | Device Plugins | User-created device implementations (device_*.py) | User's SDTB device directory |
 | Flash Plugins | User-created flashing protocols (flash_*.py) | User's SDTB device directory |
-| system.json | System-level configuration (server settings, device directory path) | AppData/SDTB path or current path. current path is default. user can change |
+| system.json | System-level configuration (server settings, device directory path) | Current working directory (`./config`) by default. |
 | device_<name>.json | Per-device configuration file (connection params, settings) co-located with plugin | User's SDTB device directory |
 | flash_<name>.json | Per-protocol configuration file (timeouts, retry logic) co-located with plugin | User's SDTB device directory |
-| channels.json | Channel-to-signal mappings with independent properties | AppData/SDTB path or current path. current path is default. user can change |
-| ui.json | UI dashboard layout and widget-to-channel mappings | AppData/SDTB path or current path. current path is default. user can change |
+| channels.json | Channel-to-signal mappings with independent properties | Current working directory (`./config`) by default. |
+| ui.json | UI dashboard layout and widget-to-channel mappings | Current working directory (`./config`) by default. |
 
 **Plugin Discovery Mechanism**
 
@@ -223,7 +224,7 @@ class SignalDefinition:
     name: str             # Human-readable signal name
     type: str             # Signal type (validated against config/signal_types.json)
     direction: str        # "input", "output", or "bidirectional"
-    resolution: int       # Number of bits or smallest increment
+    resolution: float     # Number of bits or smallest increment
     unit: str             # Measurement unit (e.g., "V", "mA", "%")
     offset: float         # Calibration offset
     min: float            # Minimum valid range value
@@ -336,6 +337,7 @@ Note: Each device plugin (`device_<name>.py`) has a corresponding `device_<name>
 ```
 
 ### 2.2 High-Level Architecture
+
 ```
 +----------------------+
 |   MCP Server Layer   |  ← Wrapper Layer (Python)
@@ -353,6 +355,7 @@ Note: Each device plugin (`device_<name>.py`) has a corresponding `device_<name>
 ### 2.3 Architectural Components
 
 #### 2.3.1 Base Layer: REST API Endpoint
+
 - **Technology**: Python-based REST API (FastAPI/Flask)
 - **Purpose**: Core functionality exposure through standardized HTTP endpoints
 - **Responsibilities**:
@@ -363,6 +366,7 @@ Note: Each device plugin (`device_<name>.py`) has a corresponding `device_<name>
   - System status reporting
 
 #### 2.3.2 Wrapper Layer: MCP Server
+
 - **Technology**: Model Context Protocol server implementation
 - **Purpose**: Enhanced interface layer providing contextual awareness and advanced capabilities
 - **Responsibilities**:
@@ -373,6 +377,7 @@ Note: Each device plugin (`device_<name>.py`) has a corresponding `device_<name>
   - Enhanced error handling and diagnostics
 
 #### 2.3.3 Technology Stack
+
 - **Primary Language**: Python 3.8+
 - **REST Framework**: FastAPI (Recommended) or Flask
 - **MCP Implementation**: Custom or standard MCP library
@@ -558,7 +563,7 @@ Each raw signal shall expose the following properties to define its physical cha
 
 | Property | Type | Description | Example |
 |----------|------|-------------|---------|
-| `resolution` | Integer | Number of bits or smallest increment | 12 (bits), 0.001 (V) |
+| `resolution` | Float | Number of bits or smallest increment | 12 (bits), 0.001 (V) |
 | `unit` | String | Measurement unit | "V", "mA", "%", "Hz" |
 | `offset` | Float | Calibration offset applied to raw value | 0.0, -0.05 |
 | `min` | Float | Minimum valid range value | 0.0, -10.0 |
@@ -632,7 +637,6 @@ Each channel shall expose the following properties for proper signal handling:
 | `max` | Float | Maximum valid range value | 3.3, 10.0, 100.0 |
 | `value` | Float | Initial or last known value | 0.0, 2.5 |
 
-
 **Requirements**
 
 | ID | Requirement | Priority | Verification Method |
@@ -686,6 +690,7 @@ Note: Flash connection is independent of `/system/connect`. The flash target mus
 | F05.14 | Flashing protocol plugins (flash_*.py) shall be auto-detected at startup | High | Integration Test |
 
 **Non-Functional Requirements**
+
 - Flash operations shall support progress reporting (percentage complete)
 - System shall enforce a **10MB maximum file size** for firmware uploads to ensure server stability
 - Flash timeout configuration shall be configurable per device type
@@ -902,12 +907,11 @@ The sidebar displays icon buttons (VS Code-style). Clicking an icon switches the
 | F09.05 | Fault injection shall be supported in automated test scripts (JSONL) | Low | Integration Test |
 | F09.06 | System shall prevent conflicting faults on the same signal (e.g., Short to Ground and Short to Battery) | Low | Unit Test |
 
-
 ### 3.4 Workflow Requirements
 
 #### W01: System Startup & Initialization
 
-1. Server process starts and loads `system.json` and `channels.json` from `AppData/SDTB`
+1. Server process starts and loads `system.json` and `channels.json` from the current working directory (`./config`)
 2. If any config file is not found, system creates it with default values
 3. System reads device directory path from `system.json` and scans for `device_*.py` plugin files and their corresponding `device_*.json` config files (with robust directory validation to prevent crashes).
 4. Discovered plugins are registered and visible via `GET /device`, but remain in `offline` state
@@ -978,8 +982,8 @@ offline → idle → busy → idle
 3. System continuously reads the signal value and pushes data frames to the client
 4. **Change Detection**: System implements a delta filter using `math.isclose` (rel_tol=1e-5) to only push data frames when values change significantly, reducing bandwidth and client load.
 5. Each data frame includes: value, timestamp, and unit
-5. Client disconnects to terminate the stream
-6. System stops reading when the client disconnects
+6. Client disconnects to terminate the stream
+7. System stops reading when the client disconnects
 
 #### W06: Test Execution Lifecycle
 
@@ -1040,18 +1044,21 @@ offline → idle → busy → idle
 ## 4. Non-Functional Requirements
 
 ### 4.1 Performance Requirements
+
 - **Response Time**: API endpoints shall respond within 100ms for 95% of requests under normal load
 - **Throughput**: System shall support minimum 100 concurrent API connections
 - **Latency**: Signal I/O operations shall have deterministic latency where hardware permits
 - **Scalability**: Architecture shall support horizontal scaling for API layer
 
 ### 4.2 Reliability Requirements
+
 - **Availability**: System shall target 99.9% uptime excluding maintenance windows
 - **Fault Tolerance**: System shall handle individual device failures without complete system failure
 - **Recovery**: System shall automatically recover from transient failures where possible
 - **Data Integrity**: All critical operations shall include validation and error detection
 
 ### 4.3 Security Requirements
+
 - **Authentication**: System shall support API key-based authentication (Low priority)
 - **Authorization**: Role-based access control for administrative operations (Low priority)
 - **Communication**: API communications shall support TLS encryption (configurable)
@@ -1059,12 +1066,14 @@ offline → idle → busy → idle
 - **Audit Trail**: Significant operations shall be logged for security monitoring
 
 ### 4.4 Usability Requirements
+
 - **API Consistency**: All endpoints shall follow RESTful conventions and consistent naming
 - **Documentation**: Complete OpenAPI/Swagger documentation shall be provided
 - **Error Responses**: Standardized error response format with meaningful messages
 - **Versioning**: API shall support versioning to enable backward compatibility
 
 ### 4.5 Maintainability Requirements
+
 - **Modularity**: Code shall be organized into loosely coupled, highly cohesive modules
 - **Testability**: System shall be designed for unit and integration testing (>80% code coverage target)
 - **Logging**: Comprehensive structured logging shall be implemented

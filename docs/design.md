@@ -190,15 +190,33 @@ To enforce strict validation at the API boundary, the following core Pydantic mo
 
 ```python
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, Literal, Annotated
+
+class LinearConversion(BaseModel):
+    type: Literal["linear"] = "linear"
+    resolution: float
+    offset: float
+
+class PolynomialConversion(BaseModel):
+    type: Literal["polynomial"] = "polynomial"
+    coefficients: List[float]
+
+class LutConversion(BaseModel):
+    type: Literal["lut"] = "lut"
+    table: List[List[float]]
+
+ConversionStrategy = Annotated[
+    Union[LinearConversion, PolynomialConversion, LutConversion],
+    Field(discriminator="type")
+]
 
 class ChannelProperties(BaseModel):
+    signal_type: Optional[str] = None
     unit: str
     min: float
     max: float
-    resolution: float
-    offset: float
-    value: float
+    conversion: ConversionStrategy
+    value: float = 0.0
 
 class ChannelConfig(BaseModel):
     channel_id: str

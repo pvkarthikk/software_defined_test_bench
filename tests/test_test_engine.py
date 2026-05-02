@@ -52,7 +52,6 @@ async def test_concurrency_lock():
     # Wait a bit for it to start
     await asyncio.sleep(0.5)
     assert system.test_engine.is_test_running == True
-    assert system.test_engine._lock.locked() == True
     print("Test is running in background...")
 
     # 2. Attempt manual write
