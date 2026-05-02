@@ -2070,11 +2070,11 @@ input:checked+.slider:before {
     margin: 12px 0;
 }
 
-.progress-bar {
+.progress-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent-primary), #60a5fa);
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
     width: var(--progress, 0%);
-    transition: width 0.3s ease;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .flash-log-card h3 {

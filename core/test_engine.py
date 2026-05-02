@@ -23,16 +23,15 @@ class TestEngine:
         self.history: List[TestResult] = []
         self._lock = asyncio.Lock()
 
-    async def run_jsonl_script(self, jsonl_content: str):
+    async def run_jsonl_script(self, jsonl_content: str, already_reserved: bool = False):
         """
         Parses and executes a JSONL test script.
         """
-        # Strictly set the flag before any 'await' point to prevent race conditions
-        # when multiple tasks are scheduled in the same event loop tick.
-        if self.is_test_running:
-            raise RuntimeError("A test is already running. Concurrency is not allowed.")
+        if not already_reserved:
+            if self.is_test_running:
+                raise RuntimeError("A test is already running. Concurrency is not allowed.")
+            self.is_test_running = True
         
-        self.is_test_running = True
         self._stop_requested = False
 
         try:

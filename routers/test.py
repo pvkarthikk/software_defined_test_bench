@@ -20,7 +20,8 @@ async def run_test(background_tasks: BackgroundTasks, script: str = Body(..., me
     system.test_engine.is_test_running = True
     
     try:
-        background_tasks.add_task(system.test_engine.run_jsonl_script, script)
+        # Pass already_reserved=True to prevent the engine from rejecting the task it just accepted
+        background_tasks.add_task(system.test_engine.run_jsonl_script, script, already_reserved=True)
         return {"message": "Test sequence accepted and started in the background"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to initiate test: {e}")

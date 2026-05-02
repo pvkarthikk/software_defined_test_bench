@@ -265,10 +265,10 @@ SDTB uses independent configuration files for fault isolation. Each file is back
 ```json
 {
   "device_directory": "C:\\Users\\<user>\\SDTB\\devices",
-  "device_update_rate": 100, // Valid range: 10ms to 5000ms. Guards against CPU exhaustion and division-by-zero.
+  "device_update_rate": 100,
   "server": {
     "host": "127.0.0.1",
-    "port": 8080
+    "port": 8000
   }
 }
 ```

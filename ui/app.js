@@ -585,7 +585,8 @@ function updateWidgetValue(widget, val) {
         if (fill) {
             const ch = state.channels.find(c => c.channel_id === widget.channel);
             const min = ch ? ch.properties.min : 0, max = ch ? ch.properties.max : 100;
-            fill.style.width = `${Math.min(Math.max(((val - min) / (max - min)) * 100, 0), 100)}%`;
+            const percent = Math.min(Math.max(((val - min) / (max - min)) * 100, 0), 100);
+            fill.style.setProperty('--progress', `${percent}%`);
         }
         valEl.innerText = Number(val).toFixed(2);
     } else if (widget.type === 'oscilloscope') {
