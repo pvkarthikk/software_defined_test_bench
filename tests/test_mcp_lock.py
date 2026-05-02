@@ -51,7 +51,7 @@ async def test_mcp_lock():
     test_ch = ChannelConfig(
         channel_id="test_channel",
         device_id="mock_1",
-        signal_id="DO0",
+        signal_id="J1_02",
         properties=ChannelProperties(unit="V", min=0, max=100, resolution=1, offset=0)
     )
     system.channel_manager.channels["test_channel"] = test_ch

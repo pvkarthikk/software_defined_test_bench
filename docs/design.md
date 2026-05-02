@@ -51,8 +51,8 @@ Centralizes I/O for `system.json`, `channels.json`, and `ui.json`.
 - **Fault Recovery**: On read failure, attempts to read `.bak`. If both fail, writes a default schema and raises a warning.
 
 ### 3.2 Plugin & Device Manager
-Responsible for discovering and instantiating `BaseDevice` implementations.
 - Uses `importlib` and `inspect` to scan the configured device directory for `device_*.py`.
+- **Robust Discovery**: Implements strict directory validation. If the device directory is missing or invalid (e.g., points to a file), the system logs a descriptive error and returns an empty device list instead of crashing.
 - Auto-loads corresponding `device_<name>.json` config files.
 - Provides a unified `connect_all()` and `disconnect_all()` interface.
 - Handles Graceful Degradation: If one device fails to connect, the system continues initializing remaining devices.

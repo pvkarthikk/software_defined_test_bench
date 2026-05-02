@@ -15,8 +15,11 @@ class PluginLoader:
         a list of classes that implement the specified base_class.
         """
         plugins = []
-        if not os.path.exists(directory):
-            logger.error(f"Plugin directory {directory} does not exist.")
+        if not os.path.isdir(directory):
+            if os.path.exists(directory):
+                logger.error(f"Plugin path {directory} exists but is not a directory.")
+            else:
+                logger.error(f"Plugin directory {directory} does not exist.")
             return plugins
 
         for filename in os.listdir(directory):

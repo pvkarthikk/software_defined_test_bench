@@ -30,7 +30,11 @@ class DeviceManager:
         device_config_manager = ConfigManager(self.device_dir)
 
         # 1. Check for plugins without any config and create defaults
-        existing_json_files = [f for f in os.listdir(self.device_dir) if f.endswith(".json") and f.startswith("device_")]
+        existing_json_files = []
+        if os.path.isdir(self.device_dir):
+            existing_json_files = [f for f in os.listdir(self.device_dir) if f.endswith(".json") and f.startswith("device_")]
+        else:
+            logger.error(f"Cannot list device directory {self.device_dir}: Not a directory.")
         
         # We also need to know which plugins are ALREADY referenced in existing JSONs
         referenced_plugins = set()

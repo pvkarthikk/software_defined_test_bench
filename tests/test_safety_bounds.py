@@ -24,10 +24,19 @@ async def test_safety_bounds():
     ch_cfg = ChannelConfig(
         channel_id="ch_safety",
         device_id="mock_1",
-        signal_id="AI0",
+        signal_id="J1_01",
         properties=ChannelProperties(unit="C", min=-100, max=1000, resolution=0.1, offset=0)
     )
     system.channel_manager.channels["ch_safety"] = ch_cfg
+
+    # Patch mock_1 to enforce bounds for this test specifically
+    mock_1 = system.device_manager.get_device("mock_1")
+    original_write = mock_1.write_signal
+    def mock_write(signal_id, value):
+        sig = mock_1.get_signal(signal_id)
+        mock_1.validate_signal_value(sig, value)
+        original_write(signal_id, value)
+    mock_1.write_signal = mock_write
 
     # 2. Attempt a write that is logically OK but physically out of bounds
     # Value 10.0 -> Raw 100.0 (since offset=0, res=0.1)

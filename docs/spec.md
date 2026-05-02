@@ -101,6 +101,7 @@ SDTB supports user-defined devices through an extensible plugin architecture:
 - Each plugin class auto-loads its own configuration at startup
 - **Singleton Guard**: The core `SDTBSystem` uses a dedicated `initialized` flag to prevent partial or duplicate re-initialization during rapid restart cycles
 - Components are auto-detected and registered at system startup
+- **Robust Path Handling**: The system validates that the configured `device_directory` is a valid directory before scanning. If the path is missing, `ConfigManager` attempts to create it; if the path exists but is a file, an error is logged and discovery is skipped to prevent `NotADirectoryError` crashes.
 - Available via `/device` and `/flash` endpoints without any configuration changes
 
 **BaseDevice Class Interface**
@@ -908,7 +909,7 @@ The sidebar displays icon buttons (VS Code-style). Clicking an icon switches the
 
 1. Server process starts and loads `system.json` and `channels.json` from `AppData/SDTB`
 2. If any config file is not found, system creates it with default values
-3. System reads device directory path from `system.json` and scans for `device_*.py` plugin files and their corresponding `device_*.json` config files
+3. System reads device directory path from `system.json` and scans for `device_*.py` plugin files and their corresponding `device_*.json` config files (with robust directory validation to prevent crashes).
 4. Discovered plugins are registered and visible via `GET /device`, but remain in `offline` state
 5. Each discovered plugin auto-loads its own `device_<name>.json` configuration
 6. REST API becomes available; `GET /system` returns system status with discovered device summary
