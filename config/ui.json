@@ -72,6 +72,18 @@
       },
       "min": null,
       "max": null
+    },
+    {
+      "id": "w1777748337095",
+      "type": "led",
+      "channel": "eco_mode",
+      "label": "eco_mode",
+      "position": {
+        "row": 0,
+        "col": 0
+      },
+      "min": null,
+      "max": null
     }
   ]
 }

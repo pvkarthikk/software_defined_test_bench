@@ -65,7 +65,7 @@
       "id": "w1777748184905",
       "type": "toggle",
       "channel": "eco_mode",
-      "label": "",
+      "label": "eco_mode",
       "position": {
         "row": 0,
         "col": 0

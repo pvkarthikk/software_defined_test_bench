@@ -24,7 +24,12 @@ const state = {
         history: {}, // channelId -> { data: [{t, v}], color, style, enabled }
         plotter: null
     },
-    testSteps: [{ cmd: 'WRITE', channel: '', value: '', condition: '==' }],
+    testSteps: [
+        { cmd: 'WRITE', channel: 'throttle', value: '25', condition: '==' },
+        { cmd: 'WAIT', channel: '', value: '2000', condition: '==' },
+        { cmd: 'ASSERT', channel: 'engine_speed', value: '1500', condition: '>=' },
+        { cmd: 'WRITE', channel: 'throttle', value: '0', condition: '==' }
+    ],
     logFilters: { system: true, devices: {}, showDebug: false },
     isBackendAlive: true,
     heartbeatTimer: null,
@@ -300,6 +305,9 @@ function syncStatus(isConnected) {
         if (btnDisconnect) btnDisconnect.classList.add('hidden');
         document.getElementById('dashboard-grid')?.classList.add('system-offline');
     }
+    
+    const btnRunTest = document.getElementById('btn-run-test');
+    if (btnRunTest) btnRunTest.disabled = !isConnected;
 
     // Refresh UI based on state
     if (state.currentView === 'dashboard') {
@@ -841,19 +849,19 @@ function renderTestTable() {
     tbody.innerHTML = '';
     state.testSteps.forEach((step, index) => {
         const row = document.createElement('tr');
-        const cmdHtml = `<select class="table-input" onchange="state.testSteps[${index}].cmd = this.value; renderTestTable();"><option value="WRITE" ${step.cmd === 'WRITE' ? 'selected' : ''}>WRITE</option><option value="WAIT" ${step.cmd === 'WAIT' ? 'selected' : ''}>WAIT</option><option value="ASSERT" ${step.cmd === 'ASSERT' ? 'selected' : ''}>ASSERT</option></select>`;
+        const cmdHtml = `<select class="table-input full-width" onchange="state.testSteps[${index}].cmd = this.value; renderTestTable();"><option value="WRITE" ${step.cmd === 'WRITE' ? 'selected' : ''}>WRITE</option><option value="WAIT" ${step.cmd === 'WAIT' ? 'selected' : ''}>WAIT</option><option value="ASSERT" ${step.cmd === 'ASSERT' ? 'selected' : ''}>ASSERT</option></select>`;
 
         // Populate channels from state.channels
         let channelOptions = '<option value="">Select...</option>';
         state.channels.forEach(ch => {
             channelOptions += `<option value="${ch.channel_id}" ${step.channel === ch.channel_id ? 'selected' : ''}>${ch.channel_id}</option>`;
         });
-        const chanHtml = step.cmd === 'WAIT' ? `<select class="table-input" disabled><option>N/A</option></select>` : `<select class="table-input" onchange="state.testSteps[${index}].channel = this.value">${channelOptions}</select>`;
+        const chanHtml = step.cmd === 'WAIT' ? `<select class="table-input full-width" disabled><option>N/A</option></select>` : `<select class="table-input full-width" onchange="state.testSteps[${index}].channel = this.value">${channelOptions}</select>`;
 
-        const valHtml = `<input type="number" class="table-input" value="${step.value}" onchange="state.testSteps[${index}].value = this.value" placeholder="${step.cmd === 'WAIT' ? 'ms' : 'Value'}">`;
+        const valHtml = `<input type="number" class="table-input full-width" value="${step.value}" onchange="state.testSteps[${index}].value = this.value" placeholder="${step.cmd === 'WAIT' ? 'ms' : 'Value'}">`;
 
         const condHtml = step.cmd === 'ASSERT' ?
-            `<select class="table-input" onchange="state.testSteps[${index}].condition = this.value">
+            `<select class="table-input full-width" onchange="state.testSteps[${index}].condition = this.value">
                 <option value="==" ${step.condition === '==' ? 'selected' : ''}>==</option>
                 <option value="!=" ${step.condition === '!=' ? 'selected' : ''}>!=</option>
                 <option value=">" ${step.condition === '>' ? 'selected' : ''}>&gt;</option>
