@@ -308,7 +308,7 @@ async def handle_sse(request: Request):
             write_stream,
             InitializationOptions(
                 server_name="sdtb-commander",
-                server_version="0.1.0",
+                server_version=get_system().version,
                 capabilities=mcp_server.get_capabilities(
                     notification_options=NotificationOptions(),
                     experimental_capabilities={},

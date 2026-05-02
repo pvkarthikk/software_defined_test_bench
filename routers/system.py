@@ -23,7 +23,7 @@ async def get_system_status():
     
     return {
         "name": "SDTB Server",
-        "version": "0.1.0",
+        "version": system.version,
         "status": "online" if is_connected else "offline",
         "is_connected": is_connected,
         "devices_discovered": len(devices),

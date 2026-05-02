@@ -10,11 +10,15 @@ if source_path not in sys.path:
 
 from main import app
 
+from core.system import SDTBSystem
+
 @pytest.fixture
 def client():
     """Provides a TestClient with lifespan support to ensure startup/shutdown logic runs."""
+    SDTBSystem._reset_instance()
     with TestClient(app) as c:
         yield c
+    SDTBSystem._reset_instance()
 
 def test_system_status(client):
     response = client.get("/system")

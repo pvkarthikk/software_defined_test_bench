@@ -36,4 +36,4 @@ async def connected_system(sdtb_system):
     await sdtb_system.device_manager.connect_all()
     yield sdtb_system
     # We don't disconnect after every test to save time, 
-    # but session shutdown will handle it.
+    # but sdtb_system fixture shutdown will handle cleanup after each test.

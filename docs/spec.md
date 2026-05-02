@@ -85,11 +85,11 @@ SDTB supports user-defined devices through an extensible plugin architecture:
 | BaseDevice | Base Python class that users extend to create custom devices | Built-in |
 | BaseFlash | Base Python class that users extend to create custom flashing protocols | Built-in |
 | BaseDeviceException | Exception class for device plugin errors | Built-in |
-| Device Plugins | User-created device implementations (device_*.py) | User's SDTB device directory |
-| Flash Plugins | User-created flashing protocols (flash_*.py) | User's SDTB device directory |
+| Device Plugins | User-created device implementations (device_*.py) | Current working directory (`./config`) by default. |
+| Flash Plugins | User-created flashing protocols (flash_*.py) | Current working directory (`./config`) by default. |
 | system.json | System-level configuration (server settings, device directory path) | Current working directory (`./config`) by default. |
-| device_<name>.json | Per-device configuration file (connection params, settings) co-located with plugin | User's SDTB device directory |
-| flash_<name>.json | Per-protocol configuration file (timeouts, retry logic) co-located with plugin | User's SDTB device directory |
+| device_<name>.json | Per-device configuration file (connection params, settings) co-located with plugin | Current working directory (`./config`) by default. |
+| flash_<name>.json | Per-protocol configuration file (timeouts, retry logic) co-located with plugin | Current working directory (`./config`) by default. |
 | channels.json | Channel-to-signal mappings with independent properties | Current working directory (`./config`) by default. |
 | ui.json | UI dashboard layout and widget-to-channel mappings | Current working directory (`./config`) by default. |
 
@@ -111,6 +111,12 @@ The BaseDevice abstract class defines the contract for all device plugins:
 
 ```python
 class BaseDevice(ABC):
+    @property
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Returns True if the device is currently connected to hardware."""
+        pass
+
     @property
     @abstractmethod
     def vendor(self) -> str: pass
@@ -143,6 +149,21 @@ class BaseDevice(ABC):
         """Restarts the hardware device."""
         pass
 
+    @abstractmethod
+    def inject_fault(self, signal_id: str, fault_id: str) -> None:
+        """Simulates a hardware fault on a specific signal."""
+        pass
+
+    @abstractmethod
+    def clear_fault(self, signal_id: Optional[str] = None) -> None:
+        """Clears the active fault on a specific signal."""
+        pass
+
+    @abstractmethod
+    def get_available_faults(self, signal_id: str) -> List[Dict[str, str]]:
+        """Returns a list of supported faults for the specified signal."""
+        pass
+
     def update(self) -> None:
         """Called periodically based on system device_update_rate. Override to implement background tasks."""
         pass
@@ -166,6 +187,12 @@ The BaseFlash abstract class defines the contract for all flashing protocol plug
 
 ```python
 class BaseFlash(ABC):
+    @property
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Returns True if connected to the target."""
+        pass
+
     @property
     @abstractmethod
     def vendor(self) -> str: pass
@@ -222,14 +249,18 @@ Describes the metadata and physical characteristics of a device signal:
 class SignalDefinition:
     signal_id: str        # Unique identifier within the device
     name: str             # Human-readable signal name
-    type: str             # Signal type (validated against config/signal_types.json)
+    type: str             # Hardware interface: "analog", "digital", "pwm", "can"
     direction: str        # "input", "output", or "bidirectional"
-    resolution: float     # Number of bits or smallest increment
-    unit: str             # Measurement unit (e.g., "V", "mA", "%")
-    offset: float         # Calibration offset
-    min: float            # Minimum valid range value
-    max: float            # Maximum valid range value
-    value: float          # Initial or last known value
+    resolution: float     # Physical units per raw count (e.g. 0.25 rpm/count)
+    signal_type: str      # Registry key in signal_types.json (e.g. "engine_speed")
+    impl_type: str        # AUTOSAR impl type: "uint8", "uint16", "sint16", etc.
+    bit_width: int        # Hardware ADC/DAC bit width (e.g. 12, 16)
+    signed: bool          # True if the raw integer is two's-complement signed
+    unit: str             # Measurement SI unit (e.g., "V", "mA", "%")
+    offset: float         # Calibration offset applied to raw value
+    min: float            # Minimum valid physical range value
+    max: float            # Maximum valid physical range value
+    value: float          # Initial or last known raw count
     description: str      # Physical connection info (e.g., "J1-Pin3", "ECU Connector A, Pin 12")
 
 # Helper classes for rapid plugin development
@@ -433,6 +464,7 @@ Channels are user-facing abstractions that represent logical I/O points on the t
 #### 3.2.3 Signal-to-Channel Mapping
 
 Users can map a channel to any available signal on any connected device. This provides maximum flexibility for test setup and hardware adaptation:
+
 - Channel A on the test bench can map to "PWM Output" on Device 1
 - Channel B on the test bench can map to "CAN" on Device 2
 - Channel configuration is independent of the underlying device
@@ -654,7 +686,7 @@ Each channel shall expose the following properties for proper signal handling:
 
 #### F05: Software Flashing
 
-**Description**: Enable users to flash firmware/software to target devices through programmable endpoints with full lifecycle management capabilities.
+**Description**: Enable users to flash firmware/software to target devices through programmable endpoints with full lifecycle management capabilities. Supports uploading large binary files (up to 10MB) via `multipart/form-data`.
 
 **API Endpoints**
 

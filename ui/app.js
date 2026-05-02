@@ -629,6 +629,10 @@ async function refreshAllData() {
         const status = await apiGet('/system');
         console.log('[SDTB] System status:', status);
         syncStatus(status.is_connected === true);
+        
+        // Update version label
+        const versionEl = document.querySelector('.version');
+        if (versionEl && status.version) versionEl.innerText = `v${status.version}`;
     } catch (e) {
         console.error('[SDTB] Status check failed:', e);
         addLog('Status check fail: ' + e.message, 'error');

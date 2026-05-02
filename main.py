@@ -12,17 +12,17 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await sdtb_system.shutdown()
 
-app = FastAPI(
-    title="Software Defined Test Bench (SDTB)",
-    description="A hardware-agnostic REST API and UI for controlling test hardware.",
-    version="0.1.0",
-    lifespan=lifespan
-)
-
 from routers import system, device, channel, test, ui, mcp, flash
 
 # Access the singleton system instance via call
 sdtb_system = system.get_system()
+
+app = FastAPI(
+    title="Software Defined Test Bench (SDTB)",
+    description="A hardware-agnostic REST API and UI for controlling test hardware.",
+    version=sdtb_system.version,
+    lifespan=lifespan
+)
 
 app.include_router(system.router)
 app.include_router(device.router)

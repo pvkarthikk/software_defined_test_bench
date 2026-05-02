@@ -4,6 +4,7 @@ import asyncio
 import math
 import json
 from typing import List, Optional, Dict
+import importlib.metadata
 from pydantic import TypeAdapter
 from core.config_manager import ConfigManager
 from core.device_manager import DeviceManager
@@ -29,6 +30,17 @@ class SDTBSystem:
         Clears the singleton instance. Use only for testing.
         """
         cls._instance = None
+
+    @property
+    def version(self) -> str:
+        """
+        Returns the application version from pyproject.toml.
+        """
+        try:
+            return importlib.metadata.version("sdtb")
+        except importlib.metadata.PackageNotFoundError:
+            # Fallback for development environments
+            return "0.1.0"
 
     def __init__(self, config_dir: Optional[str] = None):
         # Prevent re-initialization if already initialized
