@@ -56,6 +56,7 @@ async def test_non_blocking():
     print("Testing Non-Blocking Hardware I/O...")
     
     # Manually setup a system with our slow mock device
+    SDTBSystem._reset_instance()
     system = SDTBSystem()
     
     # Inject our mock device

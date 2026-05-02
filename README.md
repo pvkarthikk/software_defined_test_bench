@@ -5,9 +5,9 @@ A flexible, software-defined test automation framework for hardware validation. 
 ## High-Level Concept
 
 SDTB acts as a middle layer between your test scripts and the physical hardware. It allows you to:
-1.  **Abstract Hardware**: Define logical "Channels" (e.g., `Battery_Voltage`) that map to raw hardware signals (e.g., `Arduino_Pin_A0`).
-2.  **Plugin Architecture**: Add support for new devices or flashing protocols by simply dropping a Python script into the `devices/` directory.
-3.  **Universal Control**: Control your entire test bench via a standardized REST API or using AI-assisted tools through the Model Context Protocol (MCP).
+1. **Abstract Hardware**: Define logical "Channels" (e.g., `Battery_Voltage`) that map to raw hardware signals (e.g., `Arduino_Pin_A0`).
+2. **Plugin Architecture**: Add support for new devices or flashing protocols by simply dropping a Python script into the `devices/` directory.
+3. **Universal Control**: Control your entire test bench via a standardized REST API or using AI-assisted tools through the Model Context Protocol (MCP).
 
 ## System Architecture
 
@@ -58,7 +58,7 @@ graph TD
 
 ### 1. Installation
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. How to Run
@@ -71,7 +71,7 @@ The server will start on `http://localhost:8000`. You can access the UI at `http
 ## Documentation Map
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [api.md](docs/api.md) | Detailed REST API reference and input definitions |
 | [spec.md](docs/spec.md) | System specifications and protocol definitions |
 | [design.md](docs/design.md) | Architectural design and implementation details |

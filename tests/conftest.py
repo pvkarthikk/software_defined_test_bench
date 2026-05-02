@@ -17,9 +17,10 @@ def event_loop():
     yield loop
     loop.close()
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def sdtb_system():
-    """Fixture to provide a running SDTBSystem instance."""
+    """Fixture to provide a running SDTBSystem instance. Resets instance after each test."""
+    SDTBSystem._reset_instance()
     config_dir = os.path.join(source_path, "config")
     system = SDTBSystem(config_dir)
     await system.startup()
@@ -27,6 +28,7 @@ async def sdtb_system():
     yield system
     
     await system.shutdown()
+    SDTBSystem._reset_instance()
 
 @pytest.fixture
 async def connected_system(sdtb_system):

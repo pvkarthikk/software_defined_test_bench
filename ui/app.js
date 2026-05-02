@@ -699,7 +699,7 @@ async function renderChannelMapper() {
     table.innerHTML = '';
     state.channels.forEach(ch => {
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${ch.channel_id}</td><td>${ch.device_id}</td><td>${ch.signal_id}</td><td>${ch.properties.unit}</td><td>${ch.properties.min}</td><td>${ch.properties.max}</td><td><input type="number" step="any" class="table-input" id="read-${ch.channel_id}"></td><td><div class="flex-row" style="gap: 5px"><button class="btn btn-outline btn-sm" onclick="writeSingleChannel('${ch.channel_id}')" title="Write"><i data-lucide="edit-3"></i></button><button class="btn btn-outline btn-sm" onclick="editChannel('${ch.channel_id}')" title="Edit Mapping"><i data-lucide="edit"></i></button><button class="btn btn-outline btn-sm" onclick="removeChannel('${ch.channel_id}')" title="Delete"><i data-lucide="trash-2" style="color: var(--accent-danger)"></i></button></div></td>`;
+        row.innerHTML = `<td>${ch.channel_id}</td><td>${ch.device_id}</td><td>${ch.signal_id}</td><td>${ch.properties.unit}</td><td>${ch.properties.min}</td><td>${ch.properties.max}</td><td><input type="number" step="any" class="table-input" id="read-${ch.channel_id}" aria-label="Current value for ${ch.channel_id}"></td><td><div class="flex-row" style="gap: 5px"><button class="btn btn-outline btn-sm" onclick="writeSingleChannel('${ch.channel_id}')" title="Write" aria-label="Write to ${ch.channel_id}"><i data-lucide="edit-3"></i></button><button class="btn btn-outline btn-sm" onclick="editChannel('${ch.channel_id}')" title="Edit Mapping" aria-label="Edit mapping for ${ch.channel_id}"><i data-lucide="edit"></i></button><button class="btn btn-outline btn-sm" onclick="removeChannel('${ch.channel_id}')" title="Delete" aria-label="Delete channel ${ch.channel_id}"><i data-lucide="trash-2" style="color: var(--accent-danger)"></i></button></div></td>`;
         table.appendChild(row);
         subscribeToChannel(ch.channel_id);
     });
@@ -885,15 +885,26 @@ function handleChannelUpdate(id, val) {
     const ch = state.channels.find(c => c.channel_id === id);
     if (ch && ch.properties) ch.properties.value = val;
 
-    state.uiConfig.widgets.forEach(w => { if (w.channel === id) updateWidgetValue(w, val); });
+    // 1. Update live value in channel mapper table (High priority)
+    const tableInput = document.getElementById(`read-${id}`);
+    if (tableInput && document.activeElement !== tableInput) {
+        tableInput.value = val.toFixed(2);
+    }
 
-    // Update oscilloscope chart data
+    // 2. Update widgets (Wrap in try-catch to prevent failures from blocking other updates)
+    try {
+        state.uiConfig.widgets.forEach(w => { if (w.channel === id) updateWidgetValue(w, val); });
+    } catch (e) {
+        console.error(`[UI] Error updating widgets for channel ${id}:`, e);
+    }
+
+    // 3. Update oscilloscope chart data
     if (state.oscilloscope.history[id] && state.oscilloscope.history[id].enabled && !state.oscilloscope.paused) {
         state.oscilloscope.history[id].data.push({ t: Date.now(), v: val });
         if (state.oscilloscope.history[id].data.length > 1000) state.oscilloscope.history[id].data.shift();
     }
 
-    // Update quick oscilloscope
+    // 4. Update quick oscilloscope
     if (state.quickWave.active && state.quickWave.plotter && state.quickWave.channelId === id && !state.quickWave.paused) {
         const now = Date.now() / 1000;
         state.quickWave.data[0].push(now);
@@ -905,15 +916,9 @@ function handleChannelUpdate(id, val) {
         state.quickWave.plotter.setData(state.quickWave.data);
     }
 
-    // Update live value in oscilloscope config bar
+    // 5. Update live value in oscilloscope config bar
     const waveValEl = document.getElementById(`wave-val-${id}`);
     if (waveValEl) waveValEl.innerText = val.toFixed(2);
-
-    // Update live value in channel mapper table
-    const tableInput = document.getElementById(`read-${id}`);
-    if (tableInput && document.activeElement !== tableInput) {
-        tableInput.value = val.toFixed(2);
-    }
 }
 
 function handleDeviceSignalUpdate(devId, sigId, val) {

@@ -27,14 +27,16 @@ class TestEngine:
         """
         Parses and executes a JSONL test script.
         """
-        if self._lock.locked() or self.is_test_running:
+        # Strictly set the flag before any 'await' point to prevent race conditions
+        # when multiple tasks are scheduled in the same event loop tick.
+        if self.is_test_running:
             raise RuntimeError("A test is already running. Concurrency is not allowed.")
+        
+        self.is_test_running = True
+        self._stop_requested = False
 
-        async with self._lock:
-            self.is_test_running = True
-            self._stop_requested = False
-            
-            try:
+        try:
+            async with self._lock:
                 # 1. Parse JSONL
                 steps = []
                 for i, line in enumerate(jsonl_content.splitlines()):
@@ -70,8 +72,8 @@ class TestEngine:
                         
                 logger.info("Test execution finished.")
 
-            finally:
-                self.is_test_running = False
+        finally:
+            self.is_test_running = False
 
     async def _execute_step(self, index: int, step: TestStep) -> TestResult:
         """

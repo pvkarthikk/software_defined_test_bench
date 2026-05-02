@@ -312,7 +312,7 @@
                         </div>
 
                         <div class="form-group mt-20">
-                            <label>Firmware Image</label>
+                            <label for="flash-file-input">Firmware Image</label>
                             <div id="flash-drop-zone" class="drop-zone">
                                 <i data-lucide="upload-cloud"></i>
                                 <p>Drag & Drop file or <span>Browse</span></p>
@@ -377,7 +377,8 @@
                         <input type="number" id="setting-port" class="table-input">
                     </div>
                     <div class="form-group mt-30 pt-20 border-top">
-                        <label>Workspace Management</label>
+                    <div class="card p-20 mt-20">
+                        <h4 class="mb-10">Workspace Management</h4>
                         <button class="btn btn-outline btn-block text-danger" onclick="resetLayout()">
                             <i data-lucide="layout"></i> Reset to Default Layout
                         </button>
@@ -523,7 +524,7 @@
                     </div>
                 </div>
 
-                <div class="section-label">Appearance</div>
+                <h4 class="section-label">Appearance</h4>
                 <div class="appearance-grid">
                     <div class="form-group">
                         <label for="plot-color">Plot Color</label>

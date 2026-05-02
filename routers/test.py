@@ -12,11 +12,14 @@ async def run_test(background_tasks: BackgroundTasks, script: str = Body(..., me
     Executes a test sequence provided in JSONL format.
     Runs asynchronously in the background.
     """
-    if system.test_engine._lock.locked() or system.test_engine.is_test_running:
+    if system.test_engine.is_test_running:
         raise HTTPException(status_code=409, detail="A test is already running. Please wait or stop the current test.")
     
+    # Synchronously claim the engine before offloading to background tasks
+    # to prevent race conditions from concurrent HTTP requests.
+    system.test_engine.is_test_running = True
+    
     try:
-        # Pass the task to background
         background_tasks.add_task(system.test_engine.run_jsonl_script, script)
         return {"message": "Test sequence accepted and started in the background"}
     except Exception as e:

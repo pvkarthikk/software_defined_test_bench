@@ -23,6 +23,13 @@ class SDTBSystem:
             cls._instance = super(SDTBSystem, cls).__new__(cls)
         return cls._instance
 
+    @classmethod
+    def _reset_instance(cls):
+        """
+        Clears the singleton instance. Use only for testing.
+        """
+        cls._instance = None
+
     def __init__(self, config_dir: Optional[str] = None):
         # Prevent re-initialization if already initialized
         if hasattr(self, 'initialized') and self.initialized:
